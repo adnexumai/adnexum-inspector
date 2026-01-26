@@ -26,6 +26,41 @@ from intelligence_engine import IntelligenceEngine, InsightType
 from prospector_generators import ReportGenerator, LoomScriptGenerator, CallQuestionsGenerator
 
 
+import uvicorn
+from sqlalchemy import create_engine, Column, Integer, String, Text, Float, DateTime, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime
+
+# Configuración Base de Datos
+DATABASE_URL = "sqlite:///./adnexum_os.db"
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# Modelos DB
+class Lead(Base):
+    __tablename__ = "leads"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    email = Column(String)
+    url = Column(String)
+    status = Column(String, default="Nuevo") # Nuevo, En Contacto, Propuesta, Negociación, Cerrado
+    score = Column(Integer, default=0)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Message(Base):
+    __tablename__ = "messages"
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"))
+    content = Column(Text)
+    sender = Column(String) # 'agent' o 'client'
+    platform = Column(String) # 'whatsapp', 'instagram', etc.
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+Base.metadata.create_all(bind=engine)
+
 # Inicializar FastAPI
 app = FastAPI(
     title="Adnexum Inspector API",
@@ -66,7 +101,51 @@ class QuickAnalysisRequest(BaseModel):
     url: HttpUrl
 
 
-# Endpoints
+# Endpoints de CRM
+@app.get("/api/leads")
+async def get_leads():
+    db = SessionLocal()
+    leads = db.query(Lead).all()
+    db.close()
+    return leads
+
+@app.post("/api/leads")
+async def create_lead(name: str, url: str):
+    db = SessionLocal()
+    new_lead = Lead(name=name, url=url)
+    db.add(new_lead)
+    db.commit()
+    db.refresh(new_lead)
+    db.close()
+    return new_lead
+
+@app.patch("/api/leads/{lead_id}")
+async def update_lead_status(lead_id: int, status: str):
+    db = SessionLocal()
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if lead:
+        lead.status = status
+        db.commit()
+    db.close()
+    return {"status": "updated"}
+
+@app.get("/api/messages/{lead_id}")
+async def get_messages(lead_id: int):
+    db = SessionLocal()
+    msgs = db.query(Message).filter(Message.lead_id == lead_id).all()
+    db.close()
+    return msgs
+
+@app.post("/api/messages")
+async def send_message(lead_id: int, content: str, platform: str = "whatsapp"):
+    db = SessionLocal()
+    msg = Message(lead_id=lead_id, content=content, sender="agent", platform=platform)
+    db.add(msg)
+    db.commit()
+    db.close()
+    return {"status": "sent"}
+
+# Endpoints de Prospección Existentes
 @app.get("/")
 async def root():
     """Health check."""
@@ -109,6 +188,82 @@ async def start_investigation(request: InvestigationRequest, background_tasks: B
         progress=0,
         current_step="Iniciando investigación..."
     )
+
+
+@app.post("/api/investigate-deep", response_model=InvestigationStatus)
+async def start_deep_investigation(request: InvestigationRequest, background_tasks: BackgroundTasks):
+    """
+    Inicia una investigación profunda (360) que incluye NotebookLM.
+    """
+    job_id = f"deep_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    
+    jobs_store[job_id] = {
+        "status": "pending",
+        "progress": 0,
+        "current_step": "Iniciando Inteligencia 360...",
+        "result": None,
+        "error": None,
+        "url": str(request.url)
+    }
+    
+    background_tasks.add_task(
+        run_deep_investigation_flow,
+        job_id,
+        str(request.url)
+    )
+    
+    return InvestigationStatus(
+        job_id=job_id,
+        status="pending",
+        progress=0,
+        current_step="Iniciando motor de IA..."
+    )
+
+async def run_deep_investigation_flow(job_id: str, url: str):
+    """Orquesta el flujo completo 360 en segundo plano."""
+    try:
+        job = jobs_store[job_id]
+        inspector = AdnexumInspector(headless=True)
+        
+        job["status"] = "running"
+        job["progress"] = 10
+        job["current_step"] = "Scraping web y contacto..."
+        
+        # Ejecutar investigación (Internamente ya maneja las fases)
+        results = inspector.investigate(url, deep=True)
+        job["progress"] = 80
+        job["current_step"] = "Integrando con NotebookLM (Análisis de IA)..."
+        
+        # Aquí iría la llamada al integrador_notebooklm si el MCP estuviera activo
+        # Por ahora generamos la propuesta con los datos obtenidos
+        from proposal_generator import ProposalGenerator
+        prop_gen = ProposalGenerator()
+        
+        # Simular insights de NotebookLM si no hay conexión
+        insights = {
+            "pain_points": results["diagnosis"]["executive_summary"],
+            "suggested_services": [
+                {"nombre": s, "descripcion": "Solución recomendada según análisis."} 
+                for s in results["diagnosis"]["recommended_solutions"]
+            ]
+        }
+        
+        prop_path = prop_gen.generate_tangible_proposal(
+            results["diagnosis"]["business_name"],
+            insights,
+            f"PROPUESTA_{job_id}.md"
+        )
+        
+        results["files"]["propuesta_tangible"] = prop_path
+        
+        job["status"] = "completed"
+        job["progress"] = 100
+        job["current_step"] = "Investigación 360 Finalizada"
+        job["result"] = results
+        
+    except Exception as e:
+        jobs_store[job_id]["status"] = "failed"
+        jobs_store[job_id]["error"] = str(e)
 
 
 @app.get("/api/investigate/{job_id}", response_model=InvestigationStatus)

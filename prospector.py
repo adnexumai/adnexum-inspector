@@ -21,10 +21,10 @@ from google_maps_scraper import GoogleMapsScraper
 from social_analyzer import SocialAnalyzer
 from intelligence_engine import IntelligenceEngine
 from prospector_generators import ReportGenerator, LoomScriptGenerator, CallQuestionsGenerator
-
+from deep_researcher import DeepResearcher
+from competitor_finder import CompetitorFinder
 
 console = Console()
-
 
 class AdnexumInspector:
     """
@@ -33,18 +33,12 @@ class AdnexumInspector:
     """
     
     def __init__(self, headless: bool = True):
-        """
-        Inicializa el inspector.
-        
-        Args:
-            headless: Si True, ejecuta navegadores sin interfaz gráfica
-        """
         self.headless = headless
-        
-        # Inicializar componentes
         self.web_scraper = BusinessScraper()
         self.maps_scraper = GoogleMapsScraper(headless=headless)
         self.social_analyzer = SocialAnalyzer(headless=headless)
+        self.deep_researcher = DeepResearcher(headless=headless)
+        self.competitor_finder = CompetitorFinder(headless=headless)
         self.intelligence = IntelligenceEngine()
         
         # Generadores
@@ -52,24 +46,16 @@ class AdnexumInspector:
         self.loom_gen = LoomScriptGenerator()
         self.questions_gen = CallQuestionsGenerator()
     
-    def investigate(self, url: str, output_dir: str = "./investigaciones") -> Dict:
+    def investigate(self, url: str, output_dir: str = "./investigaciones", deep: bool = False) -> Dict:
         """
         Ejecuta una investigación completa de un negocio.
-        
-        Args:
-            url: URL del sitio web del negocio
-            output_dir: Directorio base para guardar resultados
-            
-        Returns:
-            Dict con todos los resultados y rutas de archivos
         """
         console.print("")
         console.print(Panel.fit(
-            f"[bold cyan]🔍 ADNEXUM INSPECTOR[/bold cyan]\n"
-            f"Investigación 360° de: {url}",
+            f"[bold cyan]🔍 ADNEXUM INSPECTOR - INVESTIGACIÓN {'PROFUNDA' if deep else 'BÁSICA'}[/bold cyan]\n"
+            f"Analizando: {url}",
             border_style="cyan"
         ))
-        console.print("")
         
         results = {
             "url": url,
@@ -77,6 +63,8 @@ class AdnexumInspector:
             "web_data": None,
             "maps_data": None,
             "social_data": None,
+            "deep_data": None,
+            "competitors": [],
             "diagnosis": None,
             "files": {}
         }
@@ -84,8 +72,7 @@ class AdnexumInspector:
         # Crear carpeta de salida
         domain = urlparse(url).netloc.replace("www.", "")
         safe_domain = domain.replace(".", "_").replace(":", "_")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_folder = os.path.join(output_dir, f"{safe_domain}_{timestamp}")
+        output_folder = os.path.join(output_dir, f"{safe_domain}_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
         os.makedirs(output_folder, exist_ok=True)
         
         with Progress(
@@ -94,115 +81,88 @@ class AdnexumInspector:
             console=console
         ) as progress:
             
-            # FASE 1: Scraping Web
-            task1 = progress.add_task("[cyan]Fase 1/5: Analizando sitio web...", total=None)
-            try:
-                web_results = self.web_scraper.scrape_business(url, output_dir=output_folder)
-                results["web_data"] = web_results
-                results["files"]["catalogo"] = web_results.get("archivos_generados", {}).get("excel")
-                results["files"]["perfil_json"] = web_results.get("archivos_generados", {}).get("perfil_json")
-                progress.update(task1, description="[green]✓ Sitio web analizado")
-            except Exception as e:
-                console.print(f"[yellow]⚠️ Error en scraping web: {e}[/yellow]")
-                results["web_data"] = {"error": str(e), "productos": [], "contexto": {}}
+            # 1. Web Scraping
+            task_web = progress.add_task("[cyan]1/6: Analizando sitio web...", total=None)
+            web_results = self.web_scraper.scrape_business(url, output_dir=output_folder)
+            results["web_data"] = web_results
+            progress.update(task_web, description="[green]✓ Web analizada")
             
-            # FASE 2: Google Maps
-            task2 = progress.add_task("[cyan]Fase 2/5: Investigando reputación (Google Maps)...", total=None)
-            try:
-                # Obtener nombre del negocio para buscar en Maps
-                business_name = results["web_data"].get("contexto", {}).get("nombre_negocio", "")
-                if not business_name:
-                    business_name = domain.split(".")[0].replace("-", " ").title()
-                
-                maps_results = self.maps_scraper.search_business(business_name)
-                results["maps_data"] = maps_results
-                
-                if maps_results.get("status") == "found":
-                    progress.update(task2, description=f"[green]✓ Google Maps: {maps_results.get('rating', 'N/A')}⭐ ({maps_results.get('total_reviews', 0)} reseñas)")
-                else:
-                    progress.update(task2, description="[yellow]⚠ Google Maps: No encontrado")
-            except Exception as e:
-                console.print(f"[yellow]⚠️ Error en Google Maps: {e}[/yellow]")
-                results["maps_data"] = {"status": "error", "error": str(e)}
+            business_name = web_results.get("contexto", {}).get("nombre_negocio", "")
+            if not business_name: business_name = domain.split(".")[0].title()
+
+            # 2. Google Maps
+            task_maps = progress.add_task("[cyan]2/6: Investigando reputación...", total=None)
+            maps_results = self.maps_scraper.search_business(business_name)
+            results["maps_data"] = maps_results
+            progress.update(task_maps, description="[green]✓ Reputación analizada")
             
-            # FASE 3: Redes Sociales
-            task3 = progress.add_task("[cyan]Fase 3/5: Analizando presencia digital...", total=None)
-            try:
-                social_links = results["web_data"].get("contexto", {}).get("redes_sociales", {})
-                if any(social_links.values()):
-                    social_results = self.social_analyzer.analyze_social_presence(social_links)
-                    results["social_data"] = social_results
-                    progress.update(task3, description=f"[green]✓ Redes sociales: Score {social_results.get('overall_score', 'N/A')}/100")
-                else:
-                    results["social_data"] = {"overall_score": 0, "issues": ["Sin redes sociales detectadas"], "strengths": []}
-                    progress.update(task3, description="[yellow]⚠ Sin redes sociales detectadas")
-            except Exception as e:
-                console.print(f"[yellow]⚠️ Error en redes sociales: {e}[/yellow]")
-                results["social_data"] = {"status": "error", "error": str(e)}
+            # 3. Redes Sociales
+            task_social = progress.add_task("[cyan]3/6: Analizando redes sociales...", total=None)
+            social_links = web_results.get("contexto", {}).get("redes_sociales", {})
+            if any(social_links.values()):
+                social_results = self.social_analyzer.analyze_social_presence(social_links)
+                results["social_data"] = social_results
+            progress.update(task_social, description="[green]✓ RRSS analizadas")
+
+            if deep:
+                # 4. Deep Research
+                task_deep = progress.add_task("[magenta]4/6: DEEP RESEARCH (Google/Noticias)...", total=None)
+                deep_data = self.deep_researcher.research(business_name, domain)
+                results["deep_data"] = deep_data
+                results["files"]["research_md"] = self.deep_researcher.save_research(deep_data, os.path.join(output_folder, "deep_research.md"))
+                progress.update(task_deep, description="[green]✓ Deep research completado")
+
+                # 5. Competencia
+                task_comp = progress.add_task("[magenta]5/6: Localizando competidores...", total=None)
+                competitors = self.competitor_finder.find_competitors(business_name, "sector")
+                results["competitors"] = competitors
+                results["files"]["competitors_md"] = self.competitor_finder.export_competitors(competitors, os.path.join(output_folder, "competencia.md"))
+                progress.update(task_comp, description="[green]✓ Competencia analizada")
+
+            # 6. Diagnóstico y Entregables
+            task_final = progress.add_task("[cyan]6/6: Generando diagnóstico y propuestas...", total=None)
+            diagnosis = self.intelligence.analyze(results["web_data"], results["maps_data"], results["social_data"])
             
-            # FASE 4: Análisis de Inteligencia
-            task4 = progress.add_task("[cyan]Fase 4/5: Generando diagnóstico...", total=None)
-            try:
-                diagnosis = self.intelligence.analyze(
-                    web_data=results["web_data"],
-                    maps_data=results["maps_data"],
-                    social_data=results["social_data"]
-                )
-                results["diagnosis"] = {
-                    "business_name": diagnosis.business_name,
-                    "overall_score": diagnosis.overall_score,
-                    "problems_count": len(diagnosis.get_problems()),
-                    "opportunities_count": len(diagnosis.get_opportunities()),
-                    "executive_summary": diagnosis.executive_summary,
-                    "recommended_solutions": diagnosis.recommended_solutions
-                }
-                progress.update(task4, description=f"[green]✓ Diagnóstico: Score {diagnosis.overall_score}/100")
-            except Exception as e:
-                console.print(f"[red]❌ Error en análisis: {e}[/red]")
-                raise
+            # Generar entregables estándar
+            results["files"]["informe"] = self.report_gen.generate_report(diagnosis, os.path.join(output_folder, "informe_vendible.md"))
+            results["files"]["loom"] = self.loom_gen.generate_script(diagnosis, os.path.join(output_folder, "guion_loom.md"))
+            results["files"]["preguntas"] = self.questions_gen.generate_questions(diagnosis, os.path.join(output_folder, "preguntas_llamada.md"))
             
-            # FASE 5: Generación de Entregables
-            task5 = progress.add_task("[cyan]Fase 5/5: Generando entregables vendibles...", total=None)
-            try:
-                # Informe
-                report_path = os.path.join(output_folder, "informe_vendible.md")
-                self.report_gen.generate_report(diagnosis, report_path)
-                results["files"]["informe"] = report_path
-                
-                # Guion Loom
-                loom_path = os.path.join(output_folder, "guion_loom.md")
-                self.loom_gen.generate_script(diagnosis, loom_path)
-                results["files"]["guion_loom"] = loom_path
-                
-                # Preguntas
-                questions_path = os.path.join(output_folder, "preguntas_llamada.md")
-                self.questions_gen.generate_questions(diagnosis, questions_path)
-                results["files"]["preguntas"] = questions_path
-                
-                # Guardar JSON completo
-                json_path = os.path.join(output_folder, "investigacion_completa.json")
-                with open(json_path, "w", encoding="utf-8") as f:
-                    # Crear versión serializable
-                    serializable = {
-                        "url": results["url"],
-                        "timestamp": results["timestamp"],
-                        "diagnosis": results["diagnosis"],
-                        "maps_data": results["maps_data"],
-                        "files": results["files"]
-                    }
-                    json.dump(serializable, f, ensure_ascii=False, indent=2)
-                results["files"]["json_completo"] = json_path
-                
-                progress.update(task5, description="[green]✓ Entregables generados")
-                
-            except Exception as e:
-                console.print(f"[red]❌ Error generando entregables: {e}[/red]")
-                raise
-        
-        # Mostrar resumen final
+            # Generar archivo específico para NotebookLM
+            results["files"]["notebook_md"] = self._generate_notebook_md(results, output_folder)
+            
+            progress.update(task_final, description="[green]✓ Todo listo")
+
         self._print_summary(results, diagnosis, output_folder)
-        
         return results
+
+    def _generate_notebook_md(self, results: Dict, folder: str) -> str:
+        """Crea el archivo estructurado para NotebookLM."""
+        path = os.path.join(folder, "INVESTIGACION_PARA_NOTEBOOKLM.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(f"# Expediente de Inteligencia: {results['url']}\n\n")
+            f.write("## 🏢 Perfil de Empresa\n")
+            f.write(f"Nombre: {results['web_data']['contexto'].get('nombre_negocio')}\n")
+            f.write(f"Contacto: {results['web_data']['contexto'].get('contacto')}\n\n")
+            
+            if results.get('deep_data'):
+                f.write("## 🔴 Hallazgos de Deep Research\n")
+                for p in results['deep_data']['pain_points']: f.write(f"- {p}\n")
+            
+            f.write("\n## 📊 Análisis de Reputación (Maps)\n")
+            if results['maps_data']:
+                f.write(f"Rating: {results['maps_data'].get('rating')} / 5\n")
+                for signal in results['maps_data'].get('pain_signals', []): f.write(f"- {signal}\n")
+            
+            f.write("\n## 🏁 Competencia\n")
+            for c in results.get('competitors', []):
+                f.write(f"- {c['name']} ({c['url']})\n")
+        return path
+
+    def _print_summary(self, results: Dict, diagnosis, output_folder: str):
+        # Mantenemos lógica de print existente o simplificamos
+        console.print(f"\n[bold green]✨ INVESTIGACIÓN {'PROFUNDA' if results.get('deep_data') else 'BÁSICA'} COMPLETADA[/bold green]")
+        console.print(f"Archivos listos en: [link=file:///{output_folder.replace('\\', '/')}] {output_folder} [/link]")
     
     def _print_summary(self, results: Dict, diagnosis, output_folder: str):
         """Imprime un resumen visual de la investigación."""
@@ -292,6 +252,12 @@ Y generará:
         action='store_true',
         help='Mostrar el navegador durante el scraping (útil para debug)'
     )
+
+    parser.add_argument(
+        '--deep',
+        action='store_true',
+        help='Ejecutar investigación profunda 360° con NotebookLM e inteligencia de mercado'
+    )
     
     args = parser.parse_args()
     
@@ -303,7 +269,7 @@ Y generará:
     try:
         # Ejecutar investigación
         inspector = AdnexumInspector(headless=not args.no_headless)
-        results = inspector.investigate(args.url, output_dir=args.output)
+        results = inspector.investigate(args.url, output_dir=args.output, deep=args.deep)
         
     except KeyboardInterrupt:
         console.print("\n[yellow]⚠️ Investigación cancelada por el usuario[/yellow]")

@@ -61,3 +61,8 @@ coverage/
 # Misc
 *.bak
 *.tmp
+*.db
+adnexum_os.db
+investigacion_test/
+test_*.md
+test_*.json

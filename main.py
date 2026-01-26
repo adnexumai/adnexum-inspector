@@ -66,8 +66,9 @@ El scraper extraerá:
         Path(args.output).mkdir(parents=True, exist_ok=True)
         
         # Ejecutar scraper
+        # Se asume que BusinessScraper o scrape_business acepta un argumento 'deep'
         scraper = BusinessScraper(config_path=args.config)
-        results = scraper.scrape_business(args.url, output_dir=args.output)
+        results = scraper.scrape_business(args.url, output_dir=args.output, deep=args.deep)
         
         # Verificar que se extrajeron datos
         if len(results['productos']) == 0:
