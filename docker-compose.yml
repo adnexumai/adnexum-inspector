@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  # Backend API (Python + FastAPI)
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./investigaciones:/app/investigaciones
+      - ./temp_output:/app/temp_output
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+  # Frontend (Next.js) - Solo para desarrollo local
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - api
+    restart: unless-stopped

@@ -1,0 +1,23 @@
+Videos con error:
+==================================================
+
+- Como entender el Marketing para pasar los 50k Mes?
+  https://www.youtube.com/watch?v=DAoFZagLw4A
+  Error: [0;31mERROR:[0m Postprocessing: ffprobe and ffmpeg not found. Please install or provide the path using --ffmpeg-location
+
+- ¿Como se si dejo ir al Lead o lo Cierro en Call?
+  https://www.youtube.com/watch?v=2bu8UaWcP4k
+  Error: [0;31mERROR:[0m Postprocessing: ffprobe and ffmpeg not found. Please install or provide the path using --ffmpeg-location
+
+- 5 Analisis de Llamadas sobre como castigar patrones para poder moldear el comportamiento humano
+  https://www.youtube.com/watch?v=73WKrnle4kw
+  Error: [0;31mERROR:[0m Postprocessing: ffprobe and ffmpeg not found. Please install or provide the path using --ffmpeg-location
+
+- Esta es la estructura de 7 Pasos para objeciones que te va a generar tu primer millón en Ventas
+  https://www.youtube.com/watch?v=noO6eHHZULM
+  Error: [0;31mERROR:[0m Postprocessing: ffprobe and ffmpeg not found. Please install or provide the path using --ffmpeg-location
+
+- The slave also thought he was making his own decisions.
+  https://www.youtube.com/watch?v=3t7_sIO-JYw
+  Error: [0;31mERROR:[0m Postprocessing: ffprobe and ffmpeg not found. Please install or provide the path using --ffmpeg-location
+
