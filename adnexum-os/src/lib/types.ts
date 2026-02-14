@@ -187,6 +187,22 @@ export const DAILY_KPI_TARGETS: DailyKPIs = {
     cierres: 0,
 };
 
+export interface ProjectDocument {
+    id: string;
+    label: string;
+    url: string;
+    category: 'propuesta' | 'contrato' | 'sop' | 'entregable' | 'referencia' | 'otro';
+}
+
+export interface ProjectDeliverable {
+    id: string;
+    title: string;
+    status: 'pending' | 'in_progress' | 'delivered' | 'approved';
+    due_date?: string;
+    url?: string;
+    notes?: string;
+}
+
 export interface Project {
     id: string;
     user_id: string;
@@ -194,13 +210,25 @@ export interface Project {
     title: string;
     description: string;
     status: 'not_started' | 'in_progress' | 'completed' | 'on_hold';
+    client_name: string;
+    service_type: string;
     start_date?: string;
     end_date?: string;
     budget?: number;
+    monthly_revenue?: number;
+    progress: number;
+    contact_email?: string;
+    contact_phone?: string;
+    notas: string;
+    tags: string[];
+    documents: ProjectDocument[];
+    deliverables: ProjectDeliverable[];
+    checklist_data: Record<string, ChecklistItem[]>;
     kpis: Record<string, number>;
     drive_folder_url?: string;
     repo_url?: string;
     figma_url?: string;
+    notion_url?: string;
     created_at: string;
     updated_at: string;
     lead?: Lead; // Join
