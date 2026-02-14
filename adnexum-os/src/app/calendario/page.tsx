@@ -30,8 +30,13 @@ function CalendarioContent() {
 
     // Google Calendar
     const today = new Date();
-    const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0);
+
+    // Fix: Memoize these dates to prevent infinite loop in useGoogleCalendar
+    const { monthStart, monthEnd } = useMemo(() => {
+        const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+        const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0);
+        return { monthStart: start.toISOString(), monthEnd: end.toISOString() };
+    }, [currentDate]);
 
     const {
         events: gcalEvents,
@@ -39,7 +44,7 @@ function CalendarioContent() {
         loading: gcalLoading,
         connect: connectGcal,
         refresh: refreshGcal,
-    } = useGoogleCalendar(monthStart.toISOString(), monthEnd.toISOString());
+    } = useGoogleCalendar(monthStart, monthEnd);
 
     useEffect(() => { setMounted(true); }, []);
 

@@ -14,18 +14,30 @@ export default function LoginPage() {
     const router = useRouter();
     const supabase = createClient();
 
+    // Debug Env Vars
+    if (typeof window !== 'undefined') {
+        console.log('Supabase URL present:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+        console.log('Supabase Key present:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    }
+
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setMessage(null);
 
         if (mode === 'register') {
-            const { error } = await supabase.auth.signUp({
+            console.log('Attempting register with:', email);
+            const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
             });
+            console.log('Register response:', { data, error });
+
             if (error) {
                 setMessage({ type: 'error', text: error.message });
+            } else if (data.user && !data.session) {
+                setMessage({ type: 'success', text: '✅ Cuenta creada. Por favor verificá tu email para confirmar.' });
             } else {
                 setMessage({ type: 'success', text: '✅ Cuenta creada. Un administrador debe aprobar tu acceso.' });
             }

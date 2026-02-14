@@ -22,8 +22,12 @@ export function useGoogleCalendar(timeMin?: string, timeMax?: string) {
         setLoading(true);
         try {
             const params = new URLSearchParams();
-            if (timeMin) params.set('timeMin', timeMin);
-            if (timeMax) params.set('timeMax', timeMax);
+            // Use provided times or default to current month
+            const start = timeMin || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+            const end = timeMax || new Date(new Date().getFullYear(), new Date().getMonth() + 2, 0).toISOString();
+
+            params.set('timeMin', start);
+            params.set('timeMax', end);
 
             const res = await fetch(`/api/google-calendar/events?${params}`);
             const data = await res.json();
@@ -40,7 +44,11 @@ export function useGoogleCalendar(timeMin?: string, timeMax?: string) {
     }, [timeMin, timeMax]);
 
     useEffect(() => {
-        fetchEvents();
+        let mounted = true;
+        fetchEvents().then(() => {
+            if (!mounted) return;
+        });
+        return () => { mounted = false; };
     }, [fetchEvents]);
 
     const connect = () => {
