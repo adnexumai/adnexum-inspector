@@ -15,9 +15,26 @@ create table public.user_roles (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references auth.users not null,
   role app_role default 'tecnico',
+  approved boolean default false,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   unique(user_id)
 );
+
+-- Auto-create user_roles row on signup
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.user_roles (user_id, role, approved)
+  values (new.id, 'tecnico', false);
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- Drop trigger if exists, then create
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
 
 -- LEADS TABLE
 create table public.leads (
