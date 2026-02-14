@@ -177,3 +177,22 @@ export const DAILY_KPI_TARGETS: DailyKPIs = {
     propuestas_enviadas: 1,
     cierres: 0,
 };
+
+export interface Project {
+    id: string;
+    user_id: string;
+    lead_id?: string;
+    title: string;
+    description: string;
+    status: 'not_started' | 'in_progress' | 'completed' | 'on_hold';
+    start_date?: string;
+    end_date?: string;
+    budget?: number;
+    kpis: Record<string, number>;
+    drive_folder_url?: string;
+    repo_url?: string;
+    figma_url?: string;
+    created_at: string;
+    updated_at: string;
+    lead?: Lead; // Join
+}

@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Lead, Task, CalendarEvent, MessageTemplate } from './types';
+import type { Lead, Task, CalendarEvent, MessageTemplate, Project } from './types';
 import * as db from './supabase';
+import { useAuth } from './auth-context';
 
 // ============ useLeads ============
 export function useLeads() {
+    const { user } = useAuth();
     const [leads, setLeads] = useState<Lead[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -16,6 +18,7 @@ export function useLeads() {
     }, []);
 
     useEffect(() => {
+        if (!user) return;
         let mounted = true;
         const fetchLeads = async () => {
             if (!mounted) return;
@@ -55,10 +58,11 @@ export function useLeads() {
             mounted = false;
             db.supabase.removeChannel(channel);
         };
-    }, [version]);
+    }, [version, user]);
 
     const create = async (lead: Partial<Lead>) => {
-        const newLead = await db.createLead(lead);
+        if (!user) throw new Error('User not authenticated');
+        const newLead = await db.createLead({ ...lead, user_id: user.id });
         setLeads(prev => [newLead, ...prev]);
         return newLead;
     };
@@ -90,6 +94,7 @@ export function useLeads() {
 
 // ============ useTasks ============
 export function useTasks(filter?: { lead_id?: string; completed?: boolean }) {
+    const { user } = useAuth();
     const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -100,6 +105,7 @@ export function useTasks(filter?: { lead_id?: string; completed?: boolean }) {
     }, []);
 
     useEffect(() => {
+        if (!user) return;
         let mounted = true;
 
         const fetchTasks = async () => {
@@ -140,10 +146,11 @@ export function useTasks(filter?: { lead_id?: string; completed?: boolean }) {
             mounted = false;
             db.supabase.removeChannel(channel);
         };
-    }, [version, filter?.lead_id, filter?.completed]);
+    }, [version, filter?.lead_id, filter?.completed, user]);
 
     const create = async (task: Partial<Task>) => {
-        const newTask = await db.createTask(task);
+        if (!user) throw new Error('User not authenticated');
+        const newTask = await db.createTask({ ...task, user_id: user.id });
         setTasks(prev => [...prev, newTask]);
         return newTask;
     };
@@ -168,6 +175,7 @@ export function useTasks(filter?: { lead_id?: string; completed?: boolean }) {
 
 // ============ useCalendar ============
 export function useCalendar() {
+    const { user } = useAuth();
     const [events, setEvents] = useState<CalendarEvent[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -183,10 +191,11 @@ export function useCalendar() {
         }
     }, []);
 
-    useEffect(() => { refresh(); }, [refresh]);
+    useEffect(() => { if (user) refresh(); }, [refresh, user]);
 
     const create = async (event: Partial<CalendarEvent>) => {
-        const newEvent = await db.createCalendarEvent(event);
+        if (!user) throw new Error('User not authenticated');
+        const newEvent = await db.createCalendarEvent({ ...event, user_id: user.id });
         setEvents(prev => [...prev, newEvent]);
         return newEvent;
     };
@@ -201,6 +210,7 @@ export function useCalendar() {
 
 // ============ useTemplates ============
 export function useTemplates() {
+    const { user } = useAuth();
     const [templates, setTemplates] = useState<MessageTemplate[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -216,10 +226,11 @@ export function useTemplates() {
         }
     }, []);
 
-    useEffect(() => { refresh(); }, [refresh]);
+    useEffect(() => { if (user) refresh(); }, [refresh, user]);
 
     const create = async (template: Partial<MessageTemplate>) => {
-        const newTemplate = await db.createTemplate(template);
+        if (!user) throw new Error('User not authenticated');
+        const newTemplate = await db.createTemplate({ ...template, user_id: user.id });
         setTemplates(prev => [...prev, newTemplate]);
         return newTemplate;
     };
@@ -237,7 +248,50 @@ export function useTemplates() {
     return { templates, loading, refresh, create, update, remove };
 }
 
+
+// ============ useProjects ============
+export function useProjects() {
+    const { user } = useAuth();
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const refresh = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await db.getProjects();
+            setProjects(data);
+        } catch (err) {
+            console.error('Error fetching projects:', err);
+        } finally {
+            setLoading(false);
+        }
+    }, [user]);
+
+    useEffect(() => { if (user) refresh(); }, [refresh, user]);
+
+    const create = async (project: Partial<Project>) => {
+        if (!user) throw new Error('User not authenticated');
+        const newProject = await db.createProject({ ...project, user_id: user.id });
+        setProjects(prev => [newProject, ...prev]);
+        return newProject;
+    };
+
+    const update = async (id: string, updates: Partial<Project>) => {
+        const updated = await db.updateProject(id, updates);
+        setProjects(prev => prev.map(p => p.id === id ? updated : p));
+        return updated;
+    };
+
+    const remove = async (id: string) => {
+        await db.deleteProject(id);
+        setProjects(prev => prev.filter(p => p.id !== id));
+    };
+
+    return { projects, loading, refresh, create, update, remove };
+}
+
 // ============ useLocalLeads (fallback sin Supabase) ============
+
 export function useLocalLeads() {
     const [leads, setLeads] = useState<Lead[]>([]);
 

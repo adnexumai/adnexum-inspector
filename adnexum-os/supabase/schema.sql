@@ -285,3 +285,28 @@ create policy "Users can manage their own Google tokens"
     using (auth.uid() = user_id)
     with check (auth.uid() = user_id);
 
+
+-- PROJECTS TABLE
+create table public.projects (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references auth.users not null,
+  lead_id uuid references public.leads,
+  title text not null,
+  description text,
+  status text check (status in ('not_started', 'in_progress', 'completed', 'on_hold')) default 'not_started',
+  start_date date,
+  end_date date,
+  budget numeric,
+  kpis jsonb default '{}'::jsonb,
+  drive_folder_url text,
+  repo_url text,
+  figma_url text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- ENABLE RLS FOR PROJECTS
+alter table public.projects enable row level security;
+
+-- POLICIES FOR PROJECTS
+create policy "Users can crud their own projects" on public.projects for all using (auth.uid() = user_id);

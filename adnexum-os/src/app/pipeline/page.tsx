@@ -171,10 +171,17 @@ export default function PipelinePage() {
             {showForm && (
                 <LeadFormModal
                     onClose={() => setShowForm(false)}
-                    onCreate={(data) => {
-                        create(data);
-                        setShowForm(false);
-                        showToast('Lead creado exitosamente');
+                    onCreate={async (data) => {
+                        try {
+                            const newLead = await create(data);
+                            setShowForm(false);
+                            showToast('Lead creado exitosamente');
+                            return newLead;
+                        } catch (error) {
+                            console.error(error);
+                            showToast('Error al crear lead: ' + (error as Error).message, 'error');
+                            throw error;
+                        }
                     }}
                     onWhatsApp={handleWhatsApp}
                 />
@@ -315,7 +322,7 @@ function LeadCard({ lead, onDragStart, onClick, onWhatsApp }: {
 /* ============ Lead Form Modal ============ */
 function LeadFormModal({ onClose, onCreate, onWhatsApp }: {
     onClose: () => void;
-    onCreate: (data: Partial<Lead>) => void;
+    onCreate: (data: Partial<Lead>) => Promise<Lead>;
     onWhatsApp: (lead: Lead) => void;
 }) {
     const [form, setForm] = useState<Partial<Lead>>({
@@ -329,15 +336,15 @@ function LeadFormModal({ onClose, onCreate, onWhatsApp }: {
 
     const set = (key: string, value: string | number) => setForm(prev => ({ ...prev, [key]: value }));
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!form.business_name) return;
-        const lead = { ...form } as Lead;
-        lead.id = crypto.randomUUID();
-        lead.created_at = new Date().toISOString();
-        lead.updated_at = new Date().toISOString();
-        lead.estado_actual = 'nuevo_lead';
-        onCreate(form);
-        setCreated(lead);
+
+        try {
+            const newLead = await onCreate(form);
+            setCreated(newLead);
+        } catch (err) {
+            // Error handled in parent
+        }
     };
 
     return (

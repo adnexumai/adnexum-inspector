@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
-import type { Lead, Task, CalendarEvent, MessageTemplate, LeadInteraction } from './types';
+import type { Lead, Task, CalendarEvent, MessageTemplate, LeadInteraction, Project } from './types';
 
 export const supabase = createClient();
 
@@ -223,7 +223,42 @@ export async function deleteTemplate(id: string) {
     if (error) throw error;
 }
 
+
+// ============ PROJECTS ============
+
+export async function getProjects() {
+    const { data, error } = await supabase
+        .from('projects')
+        .select('*, lead:leads(*)')
+        .order('updated_at', { ascending: false });
+    if (error) throw error;
+    return data as Project[];
+}
+
+export async function createProject(project: Partial<Project>) {
+    const { data, error } = await supabase.from('projects').insert([project]).select().single();
+    if (error) throw error;
+    return data as Project;
+}
+
+export async function updateProject(id: string, updates: Partial<Project>) {
+    const { data, error } = await supabase
+        .from('projects')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as Project;
+}
+
+export async function deleteProject(id: string) {
+    const { error } = await supabase.from('projects').delete().eq('id', id);
+    if (error) throw error;
+}
+
 // ============ METRICS ============
+
 
 export async function getDashboardMetrics() {
     const now = new Date();
