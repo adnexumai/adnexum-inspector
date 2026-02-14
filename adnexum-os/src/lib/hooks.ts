@@ -9,20 +9,28 @@ export function useLeads() {
     const [leads, setLeads] = useState<Lead[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const refresh = useCallback(async () => {
-        setLoading(true);
-        try {
-            const data = await db.getLeads();
-            setLeads(data);
-        } catch (err) {
-            console.error('Error fetching leads:', err);
-        } finally {
-            setLoading(false);
-        }
+    const [version, setVersion] = useState(0);
+
+    const refresh = useCallback(() => {
+        setVersion(v => v + 1);
     }, []);
 
     useEffect(() => {
-        refresh();
+        let mounted = true;
+        const fetchLeads = async () => {
+            if (!mounted) return;
+            setLoading(true);
+            try {
+                const data = await db.getLeads();
+                if (mounted) setLeads(data);
+            } catch (err) {
+                console.error('Error fetching leads:', err);
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        };
+
+        fetchLeads();
 
         const channel = db.supabase
             .channel('leads-changes')
@@ -39,12 +47,15 @@ export function useLeads() {
                     }
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                // Optional: handle subscription status
+            });
 
         return () => {
+            mounted = false;
             db.supabase.removeChannel(channel);
         };
-    }, [refresh]);
+    }, [version]);
 
     const create = async (lead: Partial<Lead>) => {
         const newLead = await db.createLead(lead);
@@ -82,20 +93,29 @@ export function useTasks(filter?: { lead_id?: string; completed?: boolean }) {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const [version, setVersion] = useState(0);
+
     const refresh = useCallback(async () => {
-        setLoading(true);
-        try {
-            const data = await db.getTasks(filter);
-            setTasks(data);
-        } catch (err) {
-            console.error('Error fetching tasks:', err);
-        } finally {
-            setLoading(false);
-        }
-    }, [filter?.lead_id, filter?.completed]);
+        setVersion(v => v + 1);
+    }, []);
 
     useEffect(() => {
-        refresh();
+        let mounted = true;
+
+        const fetchTasks = async () => {
+            if (!mounted) return;
+            setLoading(true);
+            try {
+                const data = await db.getTasks(filter);
+                if (mounted) setTasks(data);
+            } catch (err) {
+                console.error('Error fetching tasks:', err);
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        };
+
+        fetchTasks();
 
         const channel = db.supabase
             .channel('tasks-changes')
@@ -117,9 +137,10 @@ export function useTasks(filter?: { lead_id?: string; completed?: boolean }) {
             .subscribe();
 
         return () => {
+            mounted = false;
             db.supabase.removeChannel(channel);
         };
-    }, [refresh, filter?.lead_id]);
+    }, [version, filter?.lead_id, filter?.completed]);
 
     const create = async (task: Partial<Task>) => {
         const newTask = await db.createTask(task);

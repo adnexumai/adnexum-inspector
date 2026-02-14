@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export interface GoogleCalendarEvent {
     id: string;
@@ -17,62 +17,55 @@ export function useGoogleCalendar(timeMin?: string, timeMax?: string) {
     const [events, setEvents] = useState<GoogleCalendarEvent[]>([]);
     const [connected, setConnected] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [version, setVersion] = useState(0); // Used to trigger refresh
 
-    // Refs to track state and avoid infinite loops
-    const lastFetchParams = useRef<string>('');
-
-    const fetchEvents = useCallback(async (force = false) => {
-        const paramsKey = `${timeMin}-${timeMax}`;
-
-        // If not forced and params haven't changed since last successful fetch, skip
-        if (!force && lastFetchParams.current === paramsKey && events.length > 0) {
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const params = new URLSearchParams();
-            const start = timeMin || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-            const end = timeMax || new Date(new Date().getFullYear(), new Date().getMonth() + 2, 0).toISOString();
-
-            params.set('timeMin', start);
-            params.set('timeMax', end);
-
-            const res = await fetch(`/api/google-calendar/events?${params}`);
-            const data = await res.json();
-
-            setConnected(data.connected ?? false);
-
-            // Only update events if they are different (basic JSON compare)
-            setEvents(prev => {
-                const isSame = JSON.stringify(prev) === JSON.stringify(data.events ?? []);
-                return isSame ? prev : (data.events ?? []);
-            });
-
-            // Mark this fetch as done for these params
-            lastFetchParams.current = paramsKey;
-
-        } catch (err) {
-            console.error('Error fetching Google Calendar:', err);
-            setConnected(false);
-            setEvents([]);
-        } finally {
-            setLoading(false);
-        }
-    }, [timeMin, timeMax, events.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Initial fetch on mount or when params change
     useEffect(() => {
         let mounted = true;
-        fetchEvents().then(() => {
+        const fetchEvents = async () => {
             if (!mounted) return;
-        });
+            setLoading(true);
+            try {
+                const params = new URLSearchParams();
+                const start = timeMin || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+                const end = timeMax || new Date(new Date().getFullYear(), new Date().getMonth() + 2, 0).toISOString();
+
+                params.set('timeMin', start);
+                params.set('timeMax', end);
+
+                const res = await fetch(`/api/google-calendar/events?${params}`);
+                const data = await res.json();
+
+                if (mounted) {
+                    setConnected(data.connected ?? false);
+                    setEvents(prev => {
+                        // Deep compare to avoid re-renders if data matches
+                        const isSame = JSON.stringify(prev) === JSON.stringify(data.events ?? []);
+                        return isSame ? prev : (data.events ?? []);
+                    });
+                }
+            } catch (err) {
+                console.error('Error fetching Google Calendar:', err);
+                if (mounted) {
+                    setConnected(false);
+                    setEvents([]);
+                }
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        };
+
+        fetchEvents();
+
         return () => { mounted = false; };
-    }, [fetchEvents]);
+    }, [timeMin, timeMax, version]);
 
     const connect = () => {
         window.location.href = '/api/google-calendar/auth';
     };
+
+    const refresh = useCallback(() => {
+        setVersion(v => v + 1);
+    }, []);
 
     const createEvent = async (event: {
         title: string;
@@ -88,10 +81,10 @@ export function useGoogleCalendar(timeMin?: string, timeMax?: string) {
         });
         const data = await res.json();
         if (data.success) {
-            await fetchEvents(true); // Force refresh
+            refresh();
         }
         return data;
     };
 
-    return { events, connected, loading, connect, createEvent, refresh: () => fetchEvents(true) };
+    return { events, connected, loading, connect, createEvent, refresh };
 }
