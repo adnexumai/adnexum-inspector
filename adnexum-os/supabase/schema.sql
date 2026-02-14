@@ -250,3 +250,21 @@ select cron.schedule(
   '0 0 * * *',       -- every day at 00:00
   $$ select daily_reset() $$
 );
+
+-- GOOGLE CALENDAR TOKENS
+create table if not exists public.google_calendar_tokens (
+    id uuid default gen_random_uuid() primary key,
+    user_id uuid references auth.users not null unique,
+    access_token text not null,
+    refresh_token text not null,
+    expires_at timestamptz not null,
+    created_at timestamptz default now()
+);
+
+alter table public.google_calendar_tokens enable row level security;
+
+create policy "Users can manage their own Google tokens"
+    on public.google_calendar_tokens for all
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
+

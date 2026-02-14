@@ -1,16 +1,17 @@
 'use client';
 
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-export default function AuthErrorPage() {
+function ErrorContent() {
     const searchParams = useSearchParams();
     const error = searchParams.get('error');
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-[#0a0a0a] text-white">
             <h1 className="text-3xl font-bold text-red-500 mb-4">Authentication Error</h1>
-            <p className="text-xl mb-8">No pudimos inciar tu sesión.</p>
+            <p className="text-xl mb-8">No pudimos iniciar tu sesión.</p>
 
             <div className="bg-white/10 p-4 rounded-lg mb-8 max-w-md">
                 <p className="text-sm text-white/70">
@@ -26,5 +27,13 @@ export default function AuthErrorPage() {
                 Volver al Login e intentar de nuevo
             </Link>
         </div>
+    );
+}
+
+export default function AuthErrorPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-white">Cargando...</div>}>
+            <ErrorContent />
+        </Suspense>
     );
 }
