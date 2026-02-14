@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface GoogleCalendarEvent {
     id: string;
@@ -18,11 +18,20 @@ export function useGoogleCalendar(timeMin?: string, timeMax?: string) {
     const [connected, setConnected] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    const fetchEvents = useCallback(async () => {
+    // Refs to track state and avoid infinite loops
+    const lastFetchParams = useRef<string>('');
+
+    const fetchEvents = useCallback(async (force = false) => {
+        const paramsKey = `${timeMin}-${timeMax}`;
+
+        // If not forced and params haven't changed since last successful fetch, skip
+        if (!force && lastFetchParams.current === paramsKey && events.length > 0) {
+            return;
+        }
+
         setLoading(true);
         try {
             const params = new URLSearchParams();
-            // Use provided times or default to current month
             const start = timeMin || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
             const end = timeMax || new Date(new Date().getFullYear(), new Date().getMonth() + 2, 0).toISOString();
 
@@ -33,7 +42,16 @@ export function useGoogleCalendar(timeMin?: string, timeMax?: string) {
             const data = await res.json();
 
             setConnected(data.connected ?? false);
-            setEvents(data.events ?? []);
+
+            // Only update events if they are different (basic JSON compare)
+            setEvents(prev => {
+                const isSame = JSON.stringify(prev) === JSON.stringify(data.events ?? []);
+                return isSame ? prev : (data.events ?? []);
+            });
+
+            // Mark this fetch as done for these params
+            lastFetchParams.current = paramsKey;
+
         } catch (err) {
             console.error('Error fetching Google Calendar:', err);
             setConnected(false);
@@ -41,8 +59,9 @@ export function useGoogleCalendar(timeMin?: string, timeMax?: string) {
         } finally {
             setLoading(false);
         }
-    }, [timeMin, timeMax]);
+    }, [timeMin, timeMax, events.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Initial fetch on mount or when params change
     useEffect(() => {
         let mounted = true;
         fetchEvents().then(() => {
@@ -69,10 +88,10 @@ export function useGoogleCalendar(timeMin?: string, timeMax?: string) {
         });
         const data = await res.json();
         if (data.success) {
-            await fetchEvents(); // Refresh
+            await fetchEvents(true); // Force refresh
         }
         return data;
     };
 
-    return { events, connected, loading, connect, createEvent, refresh: fetchEvents };
+    return { events, connected, loading, connect, createEvent, refresh: () => fetchEvents(true) };
 }
