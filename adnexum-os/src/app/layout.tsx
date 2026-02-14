@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
+import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "Adnexum OS — Sales Operating System",
@@ -22,18 +23,20 @@ export default function RootLayout({
       </head>
       <body>
         <div style={{ display: 'flex', minHeight: '100vh' }}>
-          <Sidebar />
-          <main
-            style={{
-              flex: 1,
-              marginLeft: '256px',
-              padding: '24px',
-              transition: 'margin-left 0.3s',
-              minHeight: '100vh',
-            }}
-          >
-            {children}
-          </main>
+          <Providers>
+            <Sidebar />
+            <main
+              style={{
+                flex: 1,
+                marginLeft: '256px',
+                padding: '24px',
+                transition: 'margin-left 0.3s',
+                minHeight: '100vh',
+              }}
+            >
+              {children}
+            </main>
+          </Providers>
         </div>
       </body>
     </html>
