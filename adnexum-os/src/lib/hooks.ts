@@ -343,6 +343,7 @@ export function useLocalLeads() {
             notas: lead.notas || '',
             sop_links: lead.sop_links || '',
             tipo_negocio: lead.tipo_negocio || '',
+            checklist_data: lead.checklist_data || {},
         };
         save([newLead, ...leads]);
         return newLead;

@@ -86,7 +86,8 @@ create table public.leads (
   notas_negocio_url text,
   notas text,
   sop_links text,
-  tipo_negocio text
+  tipo_negocio text,
+  checklist_data jsonb default '{}'::jsonb
 );
 
 -- LEAD STAGE HISTORY

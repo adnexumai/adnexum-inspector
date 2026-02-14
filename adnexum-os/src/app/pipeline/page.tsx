@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useLeads } from '@/lib/hooks';
-import { PIPELINE_STAGES, type Lead, type NivelInteres, type PotencialVenta, type Fuente, STAGE_TASKS } from '@/lib/types';
+import { PIPELINE_STAGES, type Lead, type NivelInteres, type PotencialVenta, type Fuente, type ChecklistItem, STAGE_TASKS } from '@/lib/types';
 import {
     Plus, Search, X, Phone, Globe, Instagram, MessageCircle,
     ChevronRight, Clock, DollarSign, MapPin, User, Building2,
@@ -636,25 +636,7 @@ function LeadDetailSheet({ lead, onClose, onUpdate, onDelete, onWhatsApp }: {
                 )}
 
                 {activeTab === 'tareas' && (
-                    <div>
-                        <h3 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '16px' }}>
-                            Tareas para: {PIPELINE_STAGES.find(s => s.id === lead.estado_actual)?.emoji} {PIPELINE_STAGES.find(s => s.id === lead.estado_actual)?.label}
-                        </h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {stageTasks.map((task, idx) => (
-                                <div key={idx} style={{
-                                    display: 'flex', alignItems: 'center', gap: '10px',
-                                    padding: '12px', background: 'var(--color-bg-hover)', borderRadius: '10px',
-                                }}>
-                                    <CheckSquare size={16} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
-                                    <span style={{ fontSize: '13px' }}>{task}</span>
-                                </div>
-                            ))}
-                            {stageTasks.length === 0 && (
-                                <p style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>No hay tareas para esta etapa</p>
-                            )}
-                        </div>
-                    </div>
+                    <ChecklistManager lead={lead} onUpdate={onUpdate} />
                 )}
 
                 {activeTab === 'docs' && (
@@ -669,6 +651,253 @@ function LeadDetailSheet({ lead, onClose, onUpdate, onDelete, onWhatsApp }: {
                 )}
             </div>
         </>
+    );
+}
+
+/* ============ Checklist Manager ============ */
+function ChecklistManager({ lead, onUpdate }: { lead: Lead; onUpdate: (updates: Partial<Lead>) => void }) {
+    const stage = lead.estado_actual;
+    const stageLabel = PIPELINE_STAGES.find(s => s.id === stage);
+
+    // Initialize from existing data or from STAGE_TASKS templates
+    const getItems = (): ChecklistItem[] => {
+        const existing = lead.checklist_data?.[stage];
+        if (existing && existing.length > 0) return existing;
+        // Auto-seed from STAGE_TASKS
+        const templates = STAGE_TASKS[stage] || [];
+        return templates.map((text, i) => ({
+            id: `${stage}-${i}-${Date.now()}`,
+            text,
+            completed: false,
+        }));
+    };
+
+    const [items, setItems] = useState<ChecklistItem[]>(getItems());
+    const [newText, setNewText] = useState('');
+    const [newLink, setNewLink] = useState('');
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editText, setEditText] = useState('');
+    const [editLink, setEditLink] = useState('');
+
+    // Re-initialize when stage changes
+    useEffect(() => {
+        setItems(getItems());
+        setShowAddForm(false);
+        setEditingId(null);
+    }, [stage]);
+
+    const persist = (updated: ChecklistItem[]) => {
+        setItems(updated);
+        const allData = { ...(lead.checklist_data || {}), [stage]: updated };
+        onUpdate({ checklist_data: allData });
+    };
+
+    const toggleItem = (id: string) => {
+        persist(items.map(item => item.id === id ? { ...item, completed: !item.completed } : item));
+    };
+
+    const addItem = () => {
+        if (!newText.trim()) return;
+        const item: ChecklistItem = {
+            id: `custom-${Date.now()}`,
+            text: newText.trim(),
+            completed: false,
+            link: newLink.trim() || undefined,
+            linkLabel: newLink.trim() ? newText.trim() : undefined,
+        };
+        persist([...items, item]);
+        setNewText('');
+        setNewLink('');
+        setShowAddForm(false);
+    };
+
+    const removeItem = (id: string) => {
+        persist(items.filter(item => item.id !== id));
+    };
+
+    const startEdit = (item: ChecklistItem) => {
+        setEditingId(item.id);
+        setEditText(item.text);
+        setEditLink(item.link || '');
+    };
+
+    const saveEdit = () => {
+        if (!editText.trim() || !editingId) return;
+        persist(items.map(item => item.id === editingId ? {
+            ...item,
+            text: editText.trim(),
+            link: editLink.trim() || undefined,
+            linkLabel: editLink.trim() ? editText.trim() : undefined,
+        } : item));
+        setEditingId(null);
+    };
+
+    const completedCount = items.filter(i => i.completed).length;
+    const progress = items.length > 0 ? Math.round((completedCount / items.length) * 100) : 0;
+
+    return (
+        <div>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ fontSize: '14px', fontWeight: 700 }}>
+                    {stageLabel?.emoji} {stageLabel?.label}
+                </h3>
+                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                    {completedCount}/{items.length} completadas
+                </span>
+            </div>
+
+            {/* Progress Bar */}
+            <div style={{
+                height: '6px', borderRadius: '3px', background: 'var(--color-bg-hover)',
+                marginBottom: '16px', overflow: 'hidden',
+            }}>
+                <div style={{
+                    height: '100%', borderRadius: '3px',
+                    width: `${progress}%`,
+                    background: progress === 100 ? 'var(--color-green)' : 'var(--color-accent)',
+                    transition: 'width 0.3s ease',
+                }} />
+            </div>
+
+            {/* Checklist Items */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
+                {items.map(item => (
+                    <div key={item.id} style={{
+                        display: 'flex', alignItems: 'flex-start', gap: '10px',
+                        padding: '10px 12px', background: 'var(--color-bg-hover)', borderRadius: '10px',
+                        opacity: item.completed ? 0.6 : 1,
+                        transition: 'opacity 0.2s',
+                    }}>
+                        {editingId === item.id ? (
+                            /* Editing Mode */
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <input
+                                    value={editText} onChange={e => setEditText(e.target.value)}
+                                    placeholder="Texto de la tarea..."
+                                    style={{ fontSize: '12px', padding: '6px 10px' }}
+                                    autoFocus
+                                    onKeyDown={e => e.key === 'Enter' && saveEdit()}
+                                />
+                                <input
+                                    value={editLink} onChange={e => setEditLink(e.target.value)}
+                                    placeholder="URL (opcional): https://..."
+                                    style={{ fontSize: '12px', padding: '6px 10px' }}
+                                    onKeyDown={e => e.key === 'Enter' && saveEdit()}
+                                />
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                    <button className="btn btn-primary btn-sm" onClick={saveEdit}>Guardar</button>
+                                    <button className="btn btn-secondary btn-sm" onClick={() => setEditingId(null)}>Cancelar</button>
+                                </div>
+                            </div>
+                        ) : (
+                            /* Display Mode */
+                            <>
+                                <button
+                                    onClick={() => toggleItem(item.id)}
+                                    style={{
+                                        background: 'none', border: `2px solid ${item.completed ? 'var(--color-green)' : 'var(--color-border)'}`,
+                                        borderRadius: '4px', width: '20px', height: '20px', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                        marginTop: '1px',
+                                        backgroundColor: item.completed ? 'var(--color-green)' : 'transparent',
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    {item.completed && <span style={{ color: 'white', fontSize: '12px', fontWeight: 800 }}>✓</span>}
+                                </button>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <span style={{
+                                        fontSize: '13px',
+                                        textDecoration: item.completed ? 'line-through' : 'none',
+                                        color: item.completed ? 'var(--color-text-muted)' : 'inherit',
+                                    }}>
+                                        {item.text}
+                                    </span>
+                                    {item.link && (
+                                        <div style={{ marginTop: '4px' }}>
+                                            <a
+                                                href={item.link.startsWith('http') ? item.link : `https://${item.link}`}
+                                                target="_blank" rel="noopener noreferrer"
+                                                style={{
+                                                    fontSize: '11px', color: 'var(--color-accent-light)',
+                                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                    textDecoration: 'none',
+                                                }}
+                                            >
+                                                <ExternalLink size={10} /> {item.link.length > 40 ? item.link.slice(0, 40) + '...' : item.link}
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                                    <button onClick={() => startEdit(item)}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: '4px' }}>
+                                        <Edit3 size={12} />
+                                    </button>
+                                    <button onClick={() => removeItem(item.id)}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: '4px' }}>
+                                        <Trash2 size={12} />
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                ))}
+                {items.length === 0 && (
+                    <p style={{ color: 'var(--color-text-muted)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
+                        No hay tareas para esta etapa. Agrega una con el botón de abajo.
+                    </p>
+                )}
+            </div>
+
+            {/* Add New Item */}
+            {showAddForm ? (
+                <div style={{
+                    padding: '12px', background: 'var(--color-bg-hover)', borderRadius: '10px',
+                    display: 'flex', flexDirection: 'column', gap: '8px',
+                    border: '1px dashed var(--color-border)',
+                }}>
+                    <input
+                        value={newText} onChange={e => setNewText(e.target.value)}
+                        placeholder="Nombre de la tarea..."
+                        style={{ fontSize: '12px', padding: '8px 10px' }}
+                        autoFocus
+                        onKeyDown={e => e.key === 'Enter' && addItem()}
+                    />
+                    <input
+                        value={newLink} onChange={e => setNewLink(e.target.value)}
+                        placeholder="URL, link o documento (opcional)"
+                        style={{ fontSize: '12px', padding: '8px 10px' }}
+                        onKeyDown={e => e.key === 'Enter' && addItem()}
+                    />
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                        <button className="btn btn-primary btn-sm" onClick={addItem} style={{ flex: 1 }}>
+                            <Plus size={14} /> Agregar
+                        </button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => { setShowAddForm(false); setNewText(''); setNewLink(''); }}>
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                <button
+                    onClick={() => setShowAddForm(true)}
+                    style={{
+                        width: '100%', padding: '10px', border: '1px dashed var(--color-border)',
+                        borderRadius: '10px', background: 'transparent', cursor: 'pointer',
+                        color: 'var(--color-text-muted)', fontSize: '13px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                        transition: 'all 0.2s',
+                    }}
+                    onMouseOver={e => { (e.target as HTMLElement).style.borderColor = 'var(--color-accent)'; (e.target as HTMLElement).style.color = 'var(--color-accent-light)'; }}
+                    onMouseOut={e => { (e.target as HTMLElement).style.borderColor = 'var(--color-border)'; (e.target as HTMLElement).style.color = 'var(--color-text-muted)'; }}
+                >
+                    <Plus size={14} /> Agregar tarea personalizada
+                </button>
+            )}
+        </div>
     );
 }
 

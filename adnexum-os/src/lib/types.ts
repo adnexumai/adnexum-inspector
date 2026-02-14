@@ -8,6 +8,14 @@ export type TipoCliente = 'mayorista' | 'minorista' | 'local_servicio' | 'indust
 export type Fuente = 'instagram' | 'ads' | 'referido' | 'manual' | 'google' | 'whois' | 'whatsapp' | 'linkedin';
 export type EventType = 'discovery' | 'venta' | 'followup' | 'loom' | 'otro';
 
+export interface ChecklistItem {
+    id: string;
+    text: string;
+    completed: boolean;
+    link?: string;
+    linkLabel?: string;
+}
+
 export interface PipelineStage {
     id: string;
     label: string;
@@ -83,6 +91,7 @@ export interface Lead {
     sop_links: string;
 
     tipo_negocio: string;
+    checklist_data: Record<string, ChecklistItem[]>;
 }
 
 export interface LeadStageHistory {
