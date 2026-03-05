@@ -7,7 +7,7 @@ import confetti from 'canvas-confetti';
 import {
     ArrowLeft, ArrowRight, CheckCircle2, Save, Calendar as CalendarIcon,
     Loader2, TrendingUp, Target, Zap, MessageCircle, Phone, FileText,
-    Trophy, Minus, Plus
+    Trophy, Minus, Plus, Flame
 } from 'lucide-react';
 
 const HABITS_LIST = [
@@ -20,21 +20,20 @@ const HABITS_LIST = [
 ];
 
 const KPI_METRICS = [
-    { id: 'mensajes_enviados', label: 'Mensajes', icon: MessageCircle, target: DAILY_KPI_TARGETS.mensajes_enviados, color: '#6366f1', bg: 'bg-indigo-50', text: 'text-indigo-600', ring: 'ring-indigo-500/20' },
-    { id: 'respuestas_recibidas', label: 'Respuestas', icon: Zap, target: DAILY_KPI_TARGETS.respuestas_recibidas, color: '#8b5cf6', bg: 'bg-violet-50', text: 'text-violet-600', ring: 'ring-violet-500/20' },
-    { id: 'llamadas_agendadas', label: 'Agenda', icon: CalendarIcon, target: DAILY_KPI_TARGETS.llamadas_agendadas, color: '#ec4899', bg: 'bg-pink-50', text: 'text-pink-600', ring: 'ring-pink-500/20' },
-    { id: 'llamadas_realizadas', label: 'Llamadas', icon: Phone, target: DAILY_KPI_TARGETS.llamadas_realizadas, color: '#f97316', bg: 'bg-orange-50', text: 'text-orange-600', ring: 'ring-orange-500/20' },
-    { id: 'propuestas_enviadas', label: 'Propuestas', icon: FileText, target: DAILY_KPI_TARGETS.propuestas_enviadas, color: '#10b981', bg: 'bg-emerald-50', text: 'text-emerald-600', ring: 'ring-emerald-500/20' },
-    { id: 'cierres', label: 'Cierres', icon: Trophy, target: DAILY_KPI_TARGETS.cierres || 1, color: '#eab308', bg: 'bg-yellow-50', text: 'text-yellow-600', ring: 'ring-yellow-500/20' },
+    { id: 'mensajes_enviados', label: 'Mensajes', icon: MessageCircle, target: DAILY_KPI_TARGETS.mensajes_enviados, gradient: 'from-blue-500 to-cyan-400', bg: 'bg-blue-500/10', text: 'text-blue-400', color: '#3b82f6', lightColor: '#93c5fd' },
+    { id: 'respuestas_recibidas', label: 'Respuestas', icon: Zap, target: DAILY_KPI_TARGETS.respuestas_recibidas, gradient: 'from-violet-500 to-purple-400', bg: 'bg-violet-500/10', text: 'text-violet-400', color: '#8b5cf6', lightColor: '#c4b5fd' },
+    { id: 'llamadas_agendadas', label: 'Agenda', icon: CalendarIcon, target: DAILY_KPI_TARGETS.llamadas_agendadas, gradient: 'from-pink-500 to-rose-400', bg: 'bg-pink-500/10', text: 'text-pink-400', color: '#ec4899', lightColor: '#f9a8d4' },
+    { id: 'llamadas_realizadas', label: 'Llamadas', icon: Phone, target: DAILY_KPI_TARGETS.llamadas_realizadas, gradient: 'from-orange-500 to-amber-400', bg: 'bg-orange-500/10', text: 'text-orange-400', color: '#f97316', lightColor: '#fdba74' },
+    { id: 'propuestas_enviadas', label: 'Propuestas', icon: FileText, target: DAILY_KPI_TARGETS.propuestas_enviadas, gradient: 'from-emerald-500 to-teal-400', bg: 'bg-emerald-500/10', text: 'text-emerald-400', color: '#10b981', lightColor: '#6ee7b7' },
+    { id: 'cierres', label: 'Cierres', icon: Trophy, target: DAILY_KPI_TARGETS.cierres || 1, gradient: 'from-yellow-500 to-amber-400', bg: 'bg-yellow-500/10', text: 'text-yellow-400', color: '#eab308', lightColor: '#fde047' },
 ];
 
 export default function DailyTrackerPage() {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const { log, loading, save, refresh } = useDailyLog(date);
+    const { log, loading, save } = useDailyLog(date);
     const { history, loading: historyLoading, refresh: refreshHistory } = useDailyLogHistory(7);
     const [saving, setSaving] = useState(false);
 
-    // Local state for immediate UI feedback
     const [habits, setHabits] = useState<string[]>([]);
     const [kpis, setKpis] = useState<Record<string, number>>({});
     const [notes, setNotes] = useState('');
@@ -55,27 +54,20 @@ export default function DailyTrackerPage() {
     }, [log, loading, date]);
 
     const handleDateChange = (days: number) => {
-        const currentDate = new Date(date);
-        currentDate.setDate(currentDate.getDate() + days);
-        setDate(currentDate.toISOString().split('T')[0]);
+        const d = new Date(date);
+        d.setDate(d.getDate() + days);
+        setDate(d.toISOString().split('T')[0]);
     };
 
     const toggleHabit = async (habitId: string) => {
         const isCompleted = habits.includes(habitId);
         let newHabits: string[];
-
         if (isCompleted) {
             newHabits = habits.filter(h => h !== habitId);
         } else {
             newHabits = [...habits, habitId];
-            confetti({
-                particleCount: 80,
-                spread: 60,
-                origin: { y: 0.6 },
-                colors: ['#6366f1', '#a855f7', '#ec4899']
-            });
+            confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 }, colors: ['#6366f1', '#a855f7', '#ec4899'] });
         }
-
         setHabits(newHabits);
         await save({ habits: newHabits });
     };
@@ -86,15 +78,9 @@ export default function DailyTrackerPage() {
         const newKpis = { ...kpis, [kpiId]: newValue };
         setKpis(newKpis);
 
-        // Check if just reached target
         const metric = KPI_METRICS.find(m => m.id === kpiId);
         if (metric && delta > 0 && current < metric.target && newValue >= metric.target) {
-            confetti({
-                particleCount: 150,
-                spread: 100,
-                origin: { y: 0.5 },
-                colors: ['#10b981', '#6366f1', '#eab308', '#ec4899']
-            });
+            confetti({ particleCount: 200, spread: 120, origin: { y: 0.4 }, colors: ['#10b981', '#6366f1', '#eab308', '#ec4899', '#3b82f6'] });
         }
 
         await save({ kpis: newKpis });
@@ -103,49 +89,43 @@ export default function DailyTrackerPage() {
 
     const handleSave = async () => {
         setSaving(true);
-        try {
-            await save({ habits, kpis, notes, plan_next_day: plan });
-        } finally {
-            setSaving(false);
-        }
+        try { await save({ habits, kpis, notes, plan_next_day: plan }); } finally { setSaving(false); }
     };
 
-    const handleBlur = () => {
-        save({ notes, plan_next_day: plan });
-    };
+    const handleBlur = () => { save({ notes, plan_next_day: plan }); };
 
-    // Compute total prospecting actions today
     const totalActions = Object.values(kpis).reduce((sum, v) => sum + v, 0);
+    const completedTargets = KPI_METRICS.filter(m => (kpis[m.id] || 0) >= m.target).length;
 
     return (
-        <div className="min-h-screen bg-slate-50/50 p-6 md:p-8 space-y-8 font-sans text-slate-800">
+        <div className="min-h-screen bg-[#0f0f1a] p-6 md:p-8 space-y-8 font-sans">
             {/* Header */}
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                    <h1 className="text-3xl font-extrabold text-white flex items-center gap-3">
+                        <div className="p-2 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-xl shadow-lg shadow-violet-500/20">
+                            <Flame className="w-6 h-6 text-white" />
+                        </div>
                         Prospecting Tracker
                     </h1>
-                    <p className="text-sm text-slate-500 font-medium mt-1">
-                        {totalActions} acciones hoy · Mide, mejora, mete volumen 🚀
+                    <p className="text-sm text-slate-400 font-medium mt-2 ml-14">
+                        <span className="text-white font-bold">{totalActions}</span> acciones · <span className="text-emerald-400 font-bold">{completedTargets}/{KPI_METRICS.length}</span> metas cumplidas
                     </p>
                 </div>
 
-                <div className="flex items-center gap-4 bg-white p-2 rounded-xl shadow-sm border border-slate-100">
-                    <button onClick={() => handleDateChange(-1)} className="p-2 hover:bg-slate-50 rounded-lg transition-colors">
-                        <ArrowLeft className="w-5 h-5 text-slate-600" />
+                <div className="flex items-center gap-2 bg-white/5 backdrop-blur-sm p-1.5 rounded-xl border border-white/10">
+                    <button onClick={() => handleDateChange(-1)} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                        <ArrowLeft className="w-4 h-4 text-slate-300" />
                     </button>
-                    <div className="flex items-center gap-2 px-2 font-semibold text-slate-700 text-sm">
+                    <div className="flex items-center gap-2 px-3 font-semibold text-white text-sm">
                         <CalendarIcon className="w-4 h-4 text-slate-400" />
                         {new Date(date + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
                     </div>
-                    <button onClick={() => handleDateChange(1)} className="p-2 hover:bg-slate-50 rounded-lg transition-colors">
-                        <ArrowRight className="w-5 h-5 text-slate-600" />
+                    <button onClick={() => handleDateChange(1)} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                        <ArrowRight className="w-4 h-4 text-slate-300" />
                     </button>
                     {new Date(date).toDateString() !== new Date().toDateString() && (
-                        <button
-                            onClick={() => setDate(new Date().toISOString().split('T')[0])}
-                            className="text-xs text-indigo-600 hover:text-indigo-700 font-bold px-2"
-                        >
+                        <button onClick={() => setDate(new Date().toISOString().split('T')[0])} className="text-xs text-violet-400 hover:text-violet-300 font-bold px-2">
                             Hoy
                         </button>
                     )}
@@ -154,16 +134,12 @@ export default function DailyTrackerPage() {
 
             {loading ? (
                 <div className="flex justify-center py-20">
-                    <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                    <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
                 </div>
             ) : (
                 <div className="space-y-8">
-                    {/* === SECTION 1: Quick KPI Counters === */}
+                    {/* === KPI COUNTERS === */}
                     <section>
-                        <div className="flex items-center gap-2 mb-4">
-                            <Target className="w-5 h-5 text-indigo-600" />
-                            <h2 className="text-lg font-bold text-slate-800">KPIs de Hoy</h2>
-                        </div>
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                             {KPI_METRICS.map(metric => {
                                 const value = kpis[metric.id] || 0;
@@ -171,64 +147,72 @@ export default function DailyTrackerPage() {
                                 const reached = value >= metric.target;
                                 const Icon = metric.icon;
 
+                                // SVG circular progress
+                                const radius = 38;
+                                const circumference = 2 * Math.PI * radius;
+                                const strokeDash = (pct / 100) * circumference;
+
                                 return (
                                     <div
                                         key={metric.id}
-                                        className={`relative bg-white rounded-2xl p-4 shadow-sm border transition-all duration-300 ${reached ? 'border-emerald-200 shadow-emerald-100' : 'border-slate-100 hover:border-slate-200'
+                                        className={`relative bg-white/[0.04] backdrop-blur-sm rounded-2xl p-5 border transition-all duration-500 group hover:bg-white/[0.07] ${reached ? 'border-emerald-500/30 shadow-lg shadow-emerald-500/10' : 'border-white/[0.06]'
                                             }`}
                                     >
+                                        {/* Glow effect when reached */}
                                         {reached && (
-                                            <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-sm">
-                                                <CheckCircle2 className="w-3 h-3 text-white" />
-                                            </div>
+                                            <div className="absolute inset-0 rounded-2xl bg-emerald-500/5 pointer-events-none" />
                                         )}
 
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <div className={`p-1.5 rounded-lg ${metric.bg}`}>
-                                                <Icon className={`w-3.5 h-3.5 ${metric.text}`} />
+                                        {/* Circular progress + value */}
+                                        <div className="flex justify-center mb-4">
+                                            <div className="relative w-24 h-24">
+                                                <svg className="w-full h-full -rotate-90" viewBox="0 0 84 84">
+                                                    {/* Background ring */}
+                                                    <circle cx="42" cy="42" r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="5" />
+                                                    {/* Progress ring */}
+                                                    <circle
+                                                        cx="42" cy="42" r={radius}
+                                                        fill="none"
+                                                        stroke={reached ? '#10b981' : metric.color}
+                                                        strokeWidth="5"
+                                                        strokeLinecap="round"
+                                                        strokeDasharray={`${strokeDash} ${circumference}`}
+                                                        className="transition-all duration-700 ease-out"
+                                                        style={{ filter: `drop-shadow(0 0 6px ${reached ? '#10b981' : metric.color}40)` }}
+                                                    />
+                                                </svg>
+                                                {/* Center value */}
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                                    <span className="text-2xl font-black text-white tabular-nums">{value}</span>
+                                                    <span className="text-[10px] text-slate-500 font-medium">/ {metric.target}</span>
+                                                </div>
                                             </div>
-                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">{metric.label}</span>
                                         </div>
 
-                                        {/* Counter */}
-                                        <div className="flex items-center justify-between mb-3">
+                                        {/* Label */}
+                                        <div className="flex items-center justify-center gap-1.5 mb-4">
+                                            <Icon className={`w-3.5 h-3.5 ${metric.text}`} />
+                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{metric.label}</span>
+                                        </div>
+
+                                        {/* +/- buttons */}
+                                        <div className="flex items-center gap-2">
                                             <button
                                                 onClick={() => incrementKPI(metric.id, -1)}
-                                                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors active:scale-95"
+                                                className="flex-1 h-9 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center transition-all active:scale-95 border border-white/[0.06]"
                                             >
-                                                <Minus className="w-3.5 h-3.5 text-slate-500" />
+                                                <Minus className="w-4 h-4 text-slate-400" />
                                             </button>
-
-                                            <div className="text-center">
-                                                <span className="text-2xl font-black text-slate-900 tabular-nums">{value}</span>
-                                                <span className="text-xs text-slate-400 font-medium block">/ {metric.target}</span>
-                                            </div>
-
                                             <button
                                                 onClick={() => incrementKPI(metric.id, 1)}
-                                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-95 shadow-sm ${reached
-                                                        ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                                                        : 'bg-slate-900 hover:bg-slate-800 text-white'
+                                                className={`flex-1 h-9 rounded-lg flex items-center justify-center transition-all active:scale-95 font-bold text-sm shadow-lg ${reached
+                                                        ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-500/25'
+                                                        : `bg-gradient-to-r ${metric.gradient} text-white shadow-lg`
                                                     }`}
+                                                style={{ boxShadow: reached ? undefined : `0 4px 14px ${metric.color}30` }}
                                             >
-                                                <Plus className="w-3.5 h-3.5" />
+                                                <Plus className="w-4 h-4" />
                                             </button>
-                                        </div>
-
-                                        {/* Progress bar */}
-                                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full rounded-full transition-all duration-500 ease-out"
-                                                style={{
-                                                    width: `${pct}%`,
-                                                    background: reached ? '#10b981' : metric.color,
-                                                }}
-                                            />
-                                        </div>
-                                        <div className="text-right mt-1">
-                                            <span className={`text-[10px] font-bold ${reached ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                                {pct}%
-                                            </span>
                                         </div>
                                     </div>
                                 );
@@ -236,18 +220,19 @@ export default function DailyTrackerPage() {
                         </div>
                     </section>
 
-                    {/* === SECTION 2: 7-Day History Chart === */}
-                    <HistoryChart history={history} loading={historyLoading} />
+                    {/* === 7-DAY HISTORY CHART === */}
+                    <HistoryChart history={history} loading={historyLoading} kpis={kpis} />
 
-                    {/* === SECTION 3: Habits + Journal (existing) === */}
+                    {/* === HABITS + JOURNAL === */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Habits */}
-                        <section className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-sm border border-slate-100 h-fit">
+                        <section className="bg-white/[0.04] backdrop-blur-sm rounded-2xl p-6 border border-white/[0.06]">
                             <div className="flex items-center gap-3 mb-5">
-                                <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
-                                    <CheckCircle2 className="w-5 h-5" />
+                                <div className="p-2 bg-indigo-500/10 rounded-lg">
+                                    <CheckCircle2 className="w-5 h-5 text-indigo-400" />
                                 </div>
-                                <h2 className="text-lg font-bold text-slate-800">Hábitos Diarios</h2>
+                                <h2 className="text-lg font-bold text-white">Hábitos Diarios</h2>
+                                <span className="ml-auto text-sm font-bold text-indigo-400">{habits.length}/{HABITS_LIST.length}</span>
                             </div>
 
                             <div className="space-y-2">
@@ -257,14 +242,14 @@ export default function DailyTrackerPage() {
                                         <button
                                             key={habit.id}
                                             onClick={() => toggleHabit(habit.id)}
-                                            className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 group ${isDone ? 'bg-indigo-50' : 'hover:bg-slate-50'
+                                            className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 group ${isDone ? 'bg-indigo-500/10' : 'hover:bg-white/[0.04]'
                                                 }`}
                                         >
-                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all ${isDone ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 group-hover:border-indigo-400'
+                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all shrink-0 ${isDone ? 'bg-indigo-500 border-indigo-500' : 'border-slate-600 group-hover:border-indigo-400'
                                                 }`}>
                                                 {isDone && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
                                             </div>
-                                            <span className={`text-sm font-medium ${isDone ? 'text-indigo-700' : 'text-slate-600'}`}>
+                                            <span className={`text-sm font-medium text-left ${isDone ? 'text-indigo-300' : 'text-slate-400'}`}>
                                                 {habit.label}
                                             </span>
                                         </button>
@@ -272,55 +257,55 @@ export default function DailyTrackerPage() {
                                 })}
                             </div>
 
-                            <div className="mt-4 pt-4 border-t border-slate-100">
-                                <div className="flex justify-between text-sm text-slate-500">
+                            <div className="mt-4 pt-4 border-t border-white/[0.06]">
+                                <div className="flex justify-between text-xs text-slate-500 mb-2">
                                     <span>Progreso</span>
-                                    <span className="font-bold text-slate-700">{Math.round((habits.length / HABITS_LIST.length) * 100)}%</span>
+                                    <span className="font-bold text-white">{Math.round((habits.length / HABITS_LIST.length) * 100)}%</span>
                                 </div>
-                                <div className="mt-2 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
                                     <div
-                                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500"
+                                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
                                         style={{ width: `${(habits.length / HABITS_LIST.length) * 100}%` }}
                                     />
                                 </div>
                             </div>
                         </section>
 
-                        {/* Journal & Plan */}
-                        <section className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-sm border border-slate-100 h-fit space-y-5">
+                        {/* Journal */}
+                        <section className="bg-white/[0.04] backdrop-blur-sm rounded-2xl p-6 border border-white/[0.06] space-y-5">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-pink-100 rounded-lg text-pink-600">
-                                    <Edit3Icon className="w-5 h-5" />
+                                <div className="p-2 bg-pink-500/10 rounded-lg">
+                                    <Edit3Icon className="w-5 h-5 text-pink-400" />
                                 </div>
-                                <h2 className="text-lg font-bold text-slate-800">Diario & Plan</h2>
+                                <h2 className="text-lg font-bold text-white">Diario & Plan</h2>
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Review del Día</label>
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Review del Día</label>
                                 <textarea
                                     value={notes}
                                     onChange={(e) => setNotes(e.target.value)}
                                     onBlur={handleBlur}
                                     placeholder="¿Qué lograste hoy? ¿Qué aprendiste?"
-                                    className="w-full h-28 p-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 resize-none transition-all placeholder:text-slate-400"
+                                    className="w-full h-28 p-4 bg-white/[0.04] border border-white/[0.06] rounded-xl text-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500/30 resize-none transition-all placeholder:text-slate-600"
                                 />
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plan para Mañana</label>
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Plan para Mañana</label>
                                 <textarea
                                     value={plan}
                                     onChange={(e) => setPlan(e.target.value)}
                                     onBlur={handleBlur}
                                     placeholder="3 prioridades clave..."
-                                    className="w-full h-28 p-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 resize-none transition-all placeholder:text-slate-400"
+                                    className="w-full h-28 p-4 bg-white/[0.04] border border-white/[0.06] rounded-xl text-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500/30 resize-none transition-all placeholder:text-slate-600"
                                 />
                             </div>
 
                             <button
                                 onClick={handleSave}
                                 disabled={saving}
-                                className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 text-sm"
+                                className="w-full py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl font-semibold transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-violet-500/20"
                             >
                                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                                 {saving ? 'Guardando...' : 'Guardar Notas'}
@@ -334,14 +319,12 @@ export default function DailyTrackerPage() {
 }
 
 // ============ History Chart Component ============
-function HistoryChart({ history, loading }: { history: any[]; loading: boolean }) {
+function HistoryChart({ history, loading, kpis }: { history: any[]; loading: boolean; kpis: Record<string, number> }) {
     const [selectedMetric, setSelectedMetric] = useState('mensajes_enviados');
-
     const metric = KPI_METRICS.find(m => m.id === selectedMetric)!;
 
-    // Build 7-day data (fill gaps with 0)
     const chartData = useMemo(() => {
-        const days: { date: string; label: string; value: number }[] = [];
+        const days: { date: string; label: string; value: number; dayName: string }[] = [];
         for (let i = 6; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
@@ -350,7 +333,8 @@ function HistoryChart({ history, loading }: { history: any[]; loading: boolean }
             const value = dayLog?.kpis?.[selectedMetric] || 0;
             days.push({
                 date: dateStr,
-                label: d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }),
+                label: d.toLocaleDateString('es-ES', { day: 'numeric' }),
+                dayName: d.toLocaleDateString('es-ES', { weekday: 'short' }),
                 value,
             });
         }
@@ -363,87 +347,116 @@ function HistoryChart({ history, loading }: { history: any[]; loading: boolean }
 
     if (loading) {
         return (
-            <section className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-sm border border-slate-100">
+            <section className="bg-white/[0.04] backdrop-blur-sm rounded-2xl p-6 border border-white/[0.06]">
                 <div className="flex justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                    <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
                 </div>
             </section>
         );
     }
 
     return (
-        <section className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-sm border border-slate-100">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <section className="bg-white/[0.04] backdrop-blur-sm rounded-2xl p-6 border border-white/[0.06]">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg">
-                        <TrendingUp className="w-5 h-5 text-indigo-600" />
+                    <div className="p-2 bg-gradient-to-br from-violet-500/20 to-indigo-500/20 rounded-lg">
+                        <TrendingUp className="w-5 h-5 text-violet-400" />
                     </div>
                     <div>
-                        <h2 className="text-lg font-bold text-slate-800">Historial 7 Días</h2>
-                        <p className="text-xs text-slate-400 font-medium">Promedio: {weekAvg}/día · Total: {weekTotal}</p>
+                        <h2 className="text-lg font-bold text-white">Últimos 7 Días</h2>
+                        <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
+                            <span>Promedio: <span className="text-white font-bold">{weekAvg}</span>/día</span>
+                            <span>·</span>
+                            <span>Total: <span className="text-white font-bold">{weekTotal}</span></span>
+                        </div>
                     </div>
                 </div>
 
-                {/* Metric Selector */}
+                {/* Metric Selector Pills */}
                 <div className="flex flex-wrap gap-1.5">
-                    {KPI_METRICS.map(m => (
-                        <button
-                            key={m.id}
-                            onClick={() => setSelectedMetric(m.id)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedMetric === m.id
-                                    ? `${m.bg} ${m.text} ring-2 ${m.ring}`
-                                    : 'bg-slate-50 text-slate-400 hover:text-slate-600 hover:bg-slate-100'
-                                }`}
-                        >
-                            {m.label}
-                        </button>
-                    ))}
+                    {KPI_METRICS.map(m => {
+                        const MIcon = m.icon;
+                        return (
+                            <button
+                                key={m.id}
+                                onClick={() => setSelectedMetric(m.id)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedMetric === m.id
+                                        ? `${m.bg} ${m.text} ring-1 ring-current`
+                                        : 'bg-white/[0.04] text-slate-500 hover:text-slate-300 hover:bg-white/[0.06]'
+                                    }`}
+                            >
+                                <MIcon className="w-3 h-3" />
+                                {m.label}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
             {/* Bar Chart */}
-            <div className="flex items-end gap-3 h-40">
+            <div className="flex items-end gap-3 h-44 px-2">
                 {chartData.map((day, i) => {
                     const barHeight = maxValue > 0 ? (day.value / maxValue) * 100 : 0;
                     const isToday = day.date === new Date().toISOString().split('T')[0];
                     const reachedTarget = day.value >= metric.target;
+                    const targetLinePos = (metric.target / maxValue) * 100;
 
                     return (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1.5 group">
-                            {/* Value label */}
-                            <span className={`text-xs font-bold transition-opacity ${day.value > 0 ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'
-                                } ${reachedTarget ? 'text-emerald-600' : 'text-slate-500'}`}>
+                        <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
+                            {/* Value on hover / always for today */}
+                            <span className={`text-xs font-bold tabular-nums transition-all ${day.value > 0
+                                    ? isToday ? 'opacity-100 text-white' : 'opacity-0 group-hover:opacity-100 text-slate-400'
+                                    : 'opacity-0'
+                                }`}>
                                 {day.value}
                             </span>
 
-                            {/* Bar */}
-                            <div className="w-full relative h-28 flex items-end">
+                            {/* Bar container */}
+                            <div className="w-full relative h-32 flex items-end rounded-t-lg overflow-hidden">
                                 {/* Target line */}
                                 {metric.target > 0 && (
                                     <div
-                                        className="absolute left-0 right-0 border-t-2 border-dashed border-slate-200 z-10"
-                                        style={{ bottom: `${(metric.target / maxValue) * 100}%` }}
-                                    />
+                                        className="absolute left-0 right-0 border-t border-dashed z-10"
+                                        style={{
+                                            bottom: `${targetLinePos}%`,
+                                            borderColor: `${metric.color}40`,
+                                        }}
+                                    >
+                                        <span className="absolute -top-3 right-0 text-[8px] font-bold" style={{ color: `${metric.color}80` }}>
+                                            META
+                                        </span>
+                                    </div>
                                 )}
+
+                                {/* Bar */}
                                 <div
-                                    className={`w-full rounded-lg transition-all duration-500 ease-out ${isToday ? 'shadow-sm' : ''
-                                        }`}
+                                    className="w-full rounded-t-lg transition-all duration-700 ease-out relative overflow-hidden"
                                     style={{
-                                        height: `${Math.max(barHeight, 2)}%`,
+                                        height: `${Math.max(barHeight, day.value > 0 ? 4 : 0)}%`,
                                         background: reachedTarget
-                                            ? 'linear-gradient(to top, #10b981, #34d399)'
+                                            ? 'linear-gradient(to top, #059669, #10b981, #34d399)'
                                             : isToday
-                                                ? `linear-gradient(to top, ${metric.color}, ${metric.color}cc)`
-                                                : '#e2e8f0',
+                                                ? `linear-gradient(to top, ${metric.color}, ${metric.lightColor})`
+                                                : `linear-gradient(to top, ${metric.color}30, ${metric.color}60)`,
                                     }}
-                                />
+                                >
+                                    {/* Shine effect */}
+                                    {(isToday || reachedTarget) && (
+                                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                                    )}
+                                </div>
                             </div>
 
                             {/* Day label */}
-                            <span className={`text-[10px] font-bold uppercase tracking-wide ${isToday ? 'text-indigo-600' : 'text-slate-400'
-                                }`}>
-                                {isToday ? 'Hoy' : day.label}
-                            </span>
+                            <div className="text-center">
+                                <span className={`block text-[10px] font-bold uppercase tracking-wide ${isToday ? 'text-violet-400' : 'text-slate-600'
+                                    }`}>
+                                    {day.dayName}
+                                </span>
+                                <span className={`block text-[10px] ${isToday ? 'text-white font-bold' : 'text-slate-500'}`}>
+                                    {day.label}
+                                </span>
+                            </div>
                         </div>
                     );
                 })}
@@ -452,7 +465,6 @@ function HistoryChart({ history, loading }: { history: any[]; loading: boolean }
     );
 }
 
-// ============ Custom Icons ============
 function Edit3Icon({ className }: { className?: string }) {
     return (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
