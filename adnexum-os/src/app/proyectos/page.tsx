@@ -6,7 +6,7 @@ import type { Project, ProjectDocument, ProjectDeliverable, ChecklistItem } from
 import {
     Plus, Search, Calendar, DollarSign, Folder, ExternalLink, MoreHorizontal,
     LayoutGrid, List, X, FileText, Package, CheckSquare, StickyNote, Trash2,
-    Edit3, Link2, Tag, Mail, Phone, Globe, ChevronRight, Percent, ArrowUpRight
+    Edit3, Link2, Tag, Mail, Phone, Globe, ChevronRight, Percent, ArrowUpRight, Check
 } from 'lucide-react';
 
 const SERVICE_TYPES = ['Desarrollo Web', 'Consultoría IA', 'Automatización', 'Chatbots', 'CRM Implementation', 'Diseño UX/UI', 'Marketing', 'Otro'];
@@ -221,7 +221,23 @@ function ProjectFormModal({ onClose, onSubmit }: { onClose: () => void; onSubmit
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-card w-full max-w-lg rounded-xl p-6 border shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                 <h2 className="text-xl font-bold mb-5">🚀 Nuevo Proyecto</h2>
-                <form onSubmit={async e => { e.preventDefault(); if (!form.title) return; setLoading(true); try { await onSubmit(form); } finally { setLoading(false); } }} className="space-y-4">
+                <form onSubmit={async e => {
+                    e.preventDefault();
+                    if (!form.title) return;
+                    setLoading(true);
+                    try {
+                        // Initialize checklist data from constants
+                        const initialChecklist: Record<string, ChecklistItem[]> = {};
+                        PROJECT_PHASES.forEach(phase => {
+                            const tasks = PHASE_TASKS[phase] || [];
+                            initialChecklist[phase] = tasks.map(t => ({ id: crypto.randomUUID(), text: t, completed: false }));
+                        });
+
+                        await onSubmit({ ...form, checklist_data: initialChecklist });
+                    } finally {
+                        setLoading(false);
+                    }
+                }} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="col-span-2"><label className="block text-xs font-medium mb-1">Título del Proyecto *</label><input autoFocus className="w-full p-2 border rounded-md text-sm" value={form.title} onChange={e => set('title', e.target.value)} placeholder="Ej: Chatbot IA para Clínica X" /></div>
                         <div><label className="block text-xs font-medium mb-1">Cliente</label><input className="w-full p-2 border rounded-md text-sm" value={form.client_name} onChange={e => set('client_name', e.target.value)} placeholder="Nombre del cliente" /></div>
@@ -319,6 +335,7 @@ function ProjectDetailSheet({ project, onClose, onUpdate, onDelete }: { project:
                 </div>
 
                 <div className="p-4">
+                    <PhaseTracker project={project} />
                     {tab === 'general' && <GeneralTab project={project} onUpdate={onUpdate} />}
                     {tab === 'docs' && <DocumentsTab project={project} onUpdate={onUpdate} />}
                     {tab === 'deliverables' && <DeliverablesTab project={project} onUpdate={onUpdate} />}
@@ -575,6 +592,59 @@ function NotesTab({ project, onUpdate }: { project: Project; onUpdate: (u: Parti
         <div className="h-full flex flex-col">
             <h3 className="text-sm font-bold mb-2">📝 Notas del Proyecto</h3>
             <textarea className="flex-1 w-full p-4 border rounded-lg bg-yellow-50/50 text-sm leading-relaxed resize-none focus:ring-primary focus:border-primary" placeholder="Escribe notas, minutas de reuniones, ideas..." value={project.notas || ''} onChange={e => onUpdate({ notas: e.target.value })} />
+        </div>
+    );
+}
+
+/* ============ PHASE TRACKER ============ */
+function PhaseTracker({ project }: { project: Project }) {
+    const phases = PROJECT_PHASES.map(phase => {
+        const tasks = project.checklist_data?.[phase] || [];
+        const total = tasks.length;
+        const completed = tasks.filter(t => t.completed).length;
+        const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+        // Determine status
+        let status: 'pending' | 'in_progress' | 'completed' = 'pending';
+        if (percent === 100) status = 'completed';
+        else if (percent > 0) status = 'in_progress';
+
+        return { name: phase, percent, status };
+    });
+
+    const currentPhaseIndex = phases.findIndex(p => p.status !== 'completed');
+    const activeIndex = currentPhaseIndex === -1 ? phases.length - 1 : currentPhaseIndex;
+
+    return (
+        <div className="mb-6 overflow-x-auto pb-2">
+            <div className="flex items-center min-w-max px-2">
+                {phases.map((p, i) => {
+                    const isActive = i === activeIndex;
+                    const isPast = i < activeIndex;
+
+                    return (
+                        <div key={p.name} className="flex items-center group">
+                            <div className="flex flex-col items-center gap-1 relative">
+                                <div className={`
+                                    w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all z-10
+                                    ${isActive ? 'bg-primary text-primary-foreground border-primary scale-110 shadow-md' : ''}
+                                    ${isPast ? 'bg-primary text-primary-foreground border-primary' : ''}
+                                    ${!isActive && !isPast ? 'bg-muted text-muted-foreground border-muted-foreground/30' : ''}
+                                `}>
+                                    {isPast ? <Check size={14} /> : i + 1}
+                                </div>
+                                <span className={`text-[10px] font-medium absolute -bottom-6 whitespace-nowrap ${isActive ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+                                    {p.name} ({p.percent}%)
+                                </span>
+                            </div>
+                            {i < phases.length - 1 && (
+                                <div className={`w-12 h-0.5 mx-1 transition-colors ${isPast ? 'bg-primary' : 'bg-muted'}`} />
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="h-6" />
         </div>
     );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Lead, Task, CalendarEvent, MessageTemplate, Project } from './types';
+import type { Lead, Task, CalendarEvent, MessageTemplate, Project, DailyLog } from './types';
 import * as db from './supabase';
 import { useAuth } from './auth-context';
 
@@ -464,5 +464,65 @@ export function useLocalCalendar() {
         save(events.filter(e => e.id !== id));
     };
 
+
     return { events, loading: false, create, remove, refresh: () => { } };
+}
+
+// ============ useDailyLog ============
+export function useDailyLog(date: string) {
+    const { user } = useAuth();
+    const [log, setLog] = useState<DailyLog | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    const refresh = useCallback(async () => {
+        if (!user) return;
+        setLoading(true);
+        try {
+            const data = await db.getDailyLog(date);
+            setLog(data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }, [date, user]);
+
+    useEffect(() => { refresh(); }, [refresh]);
+
+    const save = async (updates: Partial<DailyLog>) => {
+        const payload = { ...updates, date };
+        const newLog = await db.upsertDailyLog(payload);
+        setLog(newLog);
+        return newLog;
+    };
+    return { log, loading, save, refresh };
+}
+
+// ============ useDailyLogHistory ============
+export function useDailyLogHistory(days: number = 7) {
+    const { user } = useAuth();
+    const [history, setHistory] = useState<DailyLog[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const refresh = useCallback(async () => {
+        if (!user) return;
+        setLoading(true);
+        try {
+            const end = new Date();
+            const start = new Date();
+            start.setDate(end.getDate() - (days - 1));
+            const startStr = start.toISOString().split('T')[0];
+            const endStr = end.toISOString().split('T')[0];
+            const data = await db.getDailyLogRange(startStr, endStr);
+            setHistory(data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }, [days, user]);
+
+    useEffect(() => { refresh(); }, [refresh]);
+
+    return { history, loading, refresh };
 }

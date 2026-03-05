@@ -233,3 +233,15 @@ export interface Project {
     updated_at: string;
     lead?: Lead; // Join
 }
+
+export interface DailyLog {
+    id: string;
+    user_id: string;
+    date: string; // YYYY-MM-DD
+    habits: string[]; // Array of habit IDs or names completed
+    kpis: Record<string, number>; // e.g., { mensajes_enviados: 10 }
+    notes: string;
+    plan_next_day: string;
+    created_at: string;
+    updated_at: string;
+}

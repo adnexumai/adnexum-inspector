@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
-import type { Lead, Task, CalendarEvent, MessageTemplate, LeadInteraction, Project } from './types';
+import type { Lead, Task, CalendarEvent, MessageTemplate, LeadInteraction, Project, DailyLog } from './types';
 
 export const supabase = createClient();
 
@@ -255,6 +255,61 @@ export async function updateProject(id: string, updates: Partial<Project>) {
 export async function deleteProject(id: string) {
     const { error } = await supabase.from('projects').delete().eq('id', id);
     if (error) throw error;
+}
+
+// ============ Daily Logs ============
+
+export async function getDailyLog(date: string) {
+    const { data, error } = await supabase
+        .from('daily_logs')
+        .select('*')
+        .eq('date', date)
+        .single();
+
+    // PGRST116 is "Row not found" - totally normal for a new day
+    if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching daily log:', error);
+        throw error;
+    }
+    return data as DailyLog | null;
+}
+
+export async function upsertDailyLog(log: Partial<DailyLog>) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // Ensure date is present
+    if (!log.date) throw new Error('Date is required for daily log');
+
+    const payload = {
+        ...log,
+        user_id: user.id,
+        updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+        .from('daily_logs')
+        .upsert(payload, { onConflict: 'user_id, date' })
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data as DailyLog;
+}
+
+export async function getDailyLogRange(startDate: string, endDate: string) {
+    const { data, error } = await supabase
+        .from('daily_logs')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching daily log range:', error);
+        throw error;
+    }
+    return (data || []) as DailyLog[];
 }
 
 // ============ METRICS ============

@@ -318,3 +318,34 @@ create policy "Users can manage their own Google tokens"
     with check (auth.uid() = user_id);
 
 
+
+-- ENABLE RLS FOR PROJECTS
+alter table public.projects enable row level security;
+
+-- POLICIES FOR PROJECTS
+-- 1. Allow admins to do everything
+create policy "Admins have full access to projects"
+  on public.projects for all
+  using (
+    exists (
+      select 1 from public.user_roles 
+      where user_id = auth.uid() 
+      and role = 'admin'
+    )
+  );
+
+-- 2. Allow tecnicos to view and edit all projects (collaboration)
+create policy "Tecnicos have full access to projects"
+  on public.projects for all
+  using (
+    exists (
+      select 1 from public.user_roles 
+      where user_id = auth.uid() 
+      and role = 'tecnico'
+    )
+  );
+
+-- 3. Fallback: Users can view/edit their own projects (if not in user_roles for some reason)
+create policy "Users can crud their own projects"
+  on public.projects for all
+  using (auth.uid() = user_id);
