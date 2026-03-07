@@ -21,6 +21,7 @@ const NAV_ITEMS = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard, emoji: '📊' },
     { href: '/pipeline', label: 'Pipeline', icon: Flame, emoji: '🔥' },
     { href: '/proyectos', label: 'Proyectos', icon: Rocket, emoji: '🚀' },
+    { href: '/daily', label: 'Daily Tracker', icon: Zap, emoji: '⚡' },
     { href: '/seguimiento', label: 'Seguimiento', icon: ClipboardCheck, emoji: '📋' },
     { href: '/tareas', label: 'Tareas', icon: CheckSquare, emoji: '✅' },
     { href: '/calendario', label: 'Calendario', icon: Calendar, emoji: '📅' },
