@@ -84,12 +84,32 @@ export function DailyLeadsList({
         addItem(inputValue);
     };
 
+    const handlePaste = (e: React.ClipboardEvent) => {
+        const text = e.clipboardData.getData('text');
+        if (text.includes('\n') || text.includes(',')) {
+            e.preventDefault();
+            const names = text.split(/[\n,]/).map(n => n.trim()).filter(Boolean);
+            names.forEach(name => {
+                if (!normalizedItems.some(i => i.name.toLowerCase() === name.toLowerCase())) {
+                    onAdd({ name, time: new Date().toISOString() });
+                }
+            });
+            setInputValue('');
+            setShowDropdown(false);
+            if (inputRef.current) inputRef.current.focus();
+        }
+    };
+
     const addItem = (name: string, fromCrm?: LeadSuggestion) => {
         const trimmed = name.trim();
-        if (!trimmed) return;
+        if (!trimmed) {
+            if (inputRef.current) inputRef.current.focus();
+            return;
+        }
         if (normalizedItems.some(i => i.name.toLowerCase() === trimmed.toLowerCase())) {
             setInputValue('');
             setShowDropdown(false);
+            if (inputRef.current) inputRef.current.focus();
             return;
         }
         onAdd({
@@ -101,6 +121,8 @@ export function DailyLeadsList({
         setNoteValue('');
         setShowNote(false);
         setShowDropdown(false);
+        // Automatically refocus so the user can keep typing rapidly
+        if (inputRef.current) inputRef.current.focus();
     };
 
     // Sort newest first
@@ -134,6 +156,7 @@ export function DailyLeadsList({
                                 setInputValue(e.target.value);
                                 setShowDropdown(true);
                             }}
+                            onPaste={handlePaste}
                             onFocus={() => setShowDropdown(true)}
                             onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
                             placeholder={placeholder || 'Nombre del lead...'}
