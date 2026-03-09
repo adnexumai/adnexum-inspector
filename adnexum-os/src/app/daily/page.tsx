@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useDailyLog, useDailyLogHistory } from '@/lib/hooks';
-import { DAILY_KPI_TARGETS } from '@/lib/types';
+import { DAILY_KPI_TARGETS, type TrackedLead } from '@/lib/types';
 import confetti from 'canvas-confetti';
 import {
     ArrowLeft, ArrowRight, CheckCircle2, Save, Calendar as CalendarIcon,
-    Loader2, TrendingUp, Target, Zap, MessageCircle, Phone, FileText,
-    Trophy, Minus, Plus, Flame
+    Loader2, TrendingUp, Zap, MessageCircle, Phone, FileText,
+    Trophy, Minus, Plus, Flame, Users, UserPlus
 } from 'lucide-react';
+import { PomodoroTimer } from '@/components/PomodoroTimer';
+import { DailyLeadsList } from '@/components/DailyLeadsList';
 
 const HABITS_LIST = [
     { id: 'review_crm', label: 'Revisar CRM y Pipeline' },
@@ -36,6 +38,10 @@ export default function DailyTrackerPage() {
 
     const [habits, setHabits] = useState<string[]>([]);
     const [kpis, setKpis] = useState<Record<string, number>>({});
+    const [kpiTargets, setKpiTargets] = useState<Record<string, number>>(DAILY_KPI_TARGETS as unknown as Record<string, number>);
+    const [pomodoros, setPomodoros] = useState(0);
+    const [prospectos, setProspectos] = useState<TrackedLead[]>([]);
+    const [seguimientos, setSeguimientos] = useState<TrackedLead[]>([]);
     const [notes, setNotes] = useState('');
     const [plan, setPlan] = useState('');
 
@@ -43,15 +49,54 @@ export default function DailyTrackerPage() {
         if (log) {
             setHabits(log.habits || []);
             setKpis(log.kpis || {});
+            setKpiTargets((log.kpi_targets && Object.keys(log.kpi_targets).length > 0) ? log.kpi_targets : (DAILY_KPI_TARGETS as unknown as Record<string, number>));
+            setPomodoros(log.pomodoros || 0);
+            setProspectos(log.prospectos_hoy || []);
+            setSeguimientos(log.seguimientos_hoy || []);
             setNotes(log.notes || '');
             setPlan(log.plan_next_day || '');
         } else if (!loading) {
             setHabits([]);
             setKpis({});
+            setKpiTargets(DAILY_KPI_TARGETS as unknown as Record<string, number>);
+            setPomodoros(0);
+            setProspectos([]);
+            setSeguimientos([]);
             setNotes('');
             setPlan('');
         }
     }, [log, loading, date]);
+
+    const handlePomodoroComplete = async () => {
+        const newVal = pomodoros + 1;
+        setPomodoros(newVal);
+        await save({ pomodoros: newVal });
+        refreshHistory();
+    };
+
+    const handleAddProspecto = async (item: TrackedLead) => {
+        const newVal = [item, ...prospectos];
+        setProspectos(newVal);
+        await save({ prospectos_hoy: newVal });
+    };
+
+    const handleRemoveProspecto = async (name: string) => {
+        const newVal = prospectos.filter(p => p.name !== name);
+        setProspectos(newVal);
+        await save({ prospectos_hoy: newVal });
+    };
+
+    const handleAddSeguimiento = async (item: TrackedLead) => {
+        const newVal = [item, ...seguimientos];
+        setSeguimientos(newVal);
+        await save({ seguimientos_hoy: newVal });
+    };
+
+    const handleRemoveSeguimiento = async (name: string) => {
+        const newVal = seguimientos.filter(p => p.name !== name);
+        setSeguimientos(newVal);
+        await save({ seguimientos_hoy: newVal });
+    };
 
     const handleDateChange = (days: number) => {
         const d = new Date(date);
@@ -78,8 +123,8 @@ export default function DailyTrackerPage() {
         const newKpis = { ...kpis, [kpiId]: newValue };
         setKpis(newKpis);
 
-        const metric = KPI_METRICS.find(m => m.id === kpiId);
-        if (metric && delta > 0 && current < metric.target && newValue >= metric.target) {
+        const target = kpiTargets[kpiId] || 1;
+        if (delta > 0 && current < target && newValue >= target) {
             confetti({ particleCount: 200, spread: 120, origin: { y: 0.4 }, colors: ['#10b981', '#6366f1', '#eab308', '#ec4899', '#3b82f6'] });
         }
 
@@ -95,7 +140,13 @@ export default function DailyTrackerPage() {
     const handleBlur = () => { save({ notes, plan_next_day: plan }); };
 
     const totalActions = Object.values(kpis).reduce((sum, v) => sum + v, 0);
-    const completedTargets = KPI_METRICS.filter(m => (kpis[m.id] || 0) >= m.target).length;
+    const completedTargets = KPI_METRICS.filter(m => (kpis[m.id] || 0) >= (kpiTargets[m.id] || 1)).length;
+
+    // Efficiency: Habits (40%), KPIs (40%), Pomodoros (20% - max 4 needed)
+    const habitsScore = (habits.length / HABITS_LIST.length) * 40;
+    const kpisScore = (completedTargets / KPI_METRICS.length) * 40;
+    const pomodoroScore = Math.min((pomodoros / 4) * 20, 20);
+    const efficiencyScore = Math.round(habitsScore + kpisScore + pomodoroScore);
 
     return (
         <div className="min-h-screen bg-[#0f0f1a] p-6 md:p-8 space-y-8 font-sans">
@@ -108,9 +159,15 @@ export default function DailyTrackerPage() {
                         </div>
                         Prospecting Tracker
                     </h1>
-                    <p className="text-sm text-slate-400 font-medium mt-2 ml-14">
-                        <span className="text-white font-bold">{totalActions}</span> acciones · <span className="text-emerald-400 font-bold">{completedTargets}/{KPI_METRICS.length}</span> metas cumplidas
-                    </p>
+                    <div className="flex items-center gap-4 mt-3 ml-14">
+                        <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
+                            <TrendingUp className="w-4 h-4 text-emerald-400" />
+                            <span className="text-sm font-bold text-white">Eficiencia: {efficiencyScore}%</span>
+                        </div>
+                        <p className="text-sm text-slate-400 font-medium">
+                            <span className="text-white font-bold">{totalActions}</span> acciones · <span className="text-emerald-400 font-bold">{completedTargets}/{KPI_METRICS.length}</span> metas
+                        </p>
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-2 bg-white/5 backdrop-blur-sm p-1.5 rounded-xl border border-white/10">
@@ -142,9 +199,10 @@ export default function DailyTrackerPage() {
                     <section>
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                             {KPI_METRICS.map(metric => {
+                                const target = kpiTargets[metric.id] || metric.target || 1;
                                 const value = kpis[metric.id] || 0;
-                                const pct = Math.min(100, Math.round((value / metric.target) * 100));
-                                const reached = value >= metric.target;
+                                const pct = Math.min(100, Math.round((value / target) * 100));
+                                const reached = value >= target;
                                 const Icon = metric.icon;
 
                                 // SVG circular progress
@@ -184,7 +242,7 @@ export default function DailyTrackerPage() {
                                                 {/* Center value */}
                                                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                                                     <span className="text-2xl font-black text-white tabular-nums">{value}</span>
-                                                    <span className="text-[10px] text-slate-500 font-medium">/ {metric.target}</span>
+                                                    <span className="text-[10px] text-slate-500 font-medium">/ {target}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -206,8 +264,8 @@ export default function DailyTrackerPage() {
                                             <button
                                                 onClick={() => incrementKPI(metric.id, 1)}
                                                 className={`flex-1 h-9 rounded-lg flex items-center justify-center transition-all active:scale-95 font-bold text-sm shadow-lg ${reached
-                                                        ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-500/25'
-                                                        : `bg-gradient-to-r ${metric.gradient} text-white shadow-lg`
+                                                    ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-500/25'
+                                                    : `bg-gradient-to-r ${metric.gradient} text-white shadow-lg`
                                                     }`}
                                                 style={{ boxShadow: reached ? undefined : `0 4px 14px ${metric.color}30` }}
                                             >
@@ -219,6 +277,37 @@ export default function DailyTrackerPage() {
                             })}
                         </div>
                     </section>
+
+                    {/* === DEEP WORK & PROSPECT LISTS === */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-1">
+                            <PomodoroTimer pomodorosCompleted={pomodoros} onComplete={handlePomodoroComplete} />
+                        </div>
+                        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <DailyLeadsList
+                                title="Prospectos Nuevos"
+                                badgeLabel="Prospecto"
+                                badgeColor="bg-blue-500/20 text-blue-300"
+                                headerGradient="from-blue-600 to-cyan-500"
+                                items={prospectos}
+                                onAdd={handleAddProspecto}
+                                onRemove={handleRemoveProspecto}
+                                placeholder="Nombre del lead prospectado..."
+                                emptyText="Agregá prospectos a medida que los contactás"
+                            />
+                            <DailyLeadsList
+                                title="Seguimientos del Día"
+                                badgeLabel="Seguimiento"
+                                badgeColor="bg-emerald-500/20 text-emerald-300"
+                                headerGradient="from-emerald-600 to-teal-500"
+                                items={seguimientos}
+                                onAdd={handleAddSeguimiento}
+                                onRemove={handleRemoveSeguimiento}
+                                placeholder="¿A quién hiciste follow-up hoy?"
+                                emptyText="Agregá leads a los que les hiciste seguimiento"
+                            />
+                        </div>
+                    </div>
 
                     {/* === 7-DAY HISTORY CHART === */}
                     <HistoryChart history={history} loading={historyLoading} kpis={kpis} />
@@ -381,8 +470,8 @@ function HistoryChart({ history, loading, kpis }: { history: any[]; loading: boo
                                 key={m.id}
                                 onClick={() => setSelectedMetric(m.id)}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedMetric === m.id
-                                        ? `${m.bg} ${m.text} ring-1 ring-current`
-                                        : 'bg-white/[0.04] text-slate-500 hover:text-slate-300 hover:bg-white/[0.06]'
+                                    ? `${m.bg} ${m.text} ring-1 ring-current`
+                                    : 'bg-white/[0.04] text-slate-500 hover:text-slate-300 hover:bg-white/[0.06]'
                                     }`}
                             >
                                 <MIcon className="w-3 h-3" />
@@ -405,8 +494,8 @@ function HistoryChart({ history, loading, kpis }: { history: any[]; loading: boo
                         <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
                             {/* Value on hover / always for today */}
                             <span className={`text-xs font-bold tabular-nums transition-all ${day.value > 0
-                                    ? isToday ? 'opacity-100 text-white' : 'opacity-0 group-hover:opacity-100 text-slate-400'
-                                    : 'opacity-0'
+                                ? isToday ? 'opacity-100 text-white' : 'opacity-0 group-hover:opacity-100 text-slate-400'
+                                : 'opacity-0'
                                 }`}>
                                 {day.value}
                             </span>

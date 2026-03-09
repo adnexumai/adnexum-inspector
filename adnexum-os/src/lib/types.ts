@@ -234,12 +234,22 @@ export interface Project {
     lead?: Lead; // Join
 }
 
+export interface TrackedLead {
+    name: string;
+    note?: string;
+    time: string; // ISO string
+}
+
 export interface DailyLog {
     id: string;
     user_id: string;
     date: string; // YYYY-MM-DD
     habits: string[]; // Array of habit IDs or names completed
     kpis: Record<string, number>; // e.g., { mensajes_enviados: 10 }
+    kpi_targets: Record<string, number>; // Editable daily targets
+    pomodoros: number;
+    prospectos_hoy: TrackedLead[];
+    seguimientos_hoy: TrackedLead[];
     notes: string;
     plan_next_day: string;
     created_at: string;
