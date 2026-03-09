@@ -1,25 +1,27 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, X, Users } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Plus, X, Users, Search, ChevronDown } from 'lucide-react';
+import type { TrackedLead } from '@/lib/types';
 
-// Store items with timestamp so we can sort & display time
-export interface TrackedLead {
-    name: string;
-    note?: string;
-    time: string; // ISO string
+interface LeadSuggestion {
+    id: string;
+    business_name: string;
+    owner_name: string;
+    estado_actual: string;
 }
 
 interface DailyLeadsListProps {
     title: string;
-    badgeLabel: string;         // e.g. "Prospecto" or "Seguimiento"
-    badgeColor: string;         // tailwind bg class for the badge e.g. "bg-blue-500/20 text-blue-300"
-    headerGradient: string;     // e.g. "from-blue-600 to-cyan-500"
+    badgeLabel: string;
+    badgeColor: string;
+    headerGradient: string;
     items: TrackedLead[];
     onAdd: (item: TrackedLead) => void;
     onRemove: (name: string) => void;
     placeholder?: string;
     emptyText?: string;
+    crmLeads?: LeadSuggestion[]; // Optional leads from CRM for autocomplete
 }
 
 function getInitials(name: string) {
@@ -28,11 +30,16 @@ function getInitials(name: string) {
 
 function getAvatarColor(name: string) {
     const colors = [
-        'bg-blue-500', 'bg-violet-500', 'bg-pink-500',
-        'bg-emerald-500', 'bg-amber-500', 'bg-cyan-500',
-        'bg-rose-500', 'bg-indigo-500',
+        'from-blue-500 to-blue-600',
+        'from-violet-500 to-purple-600',
+        'from-pink-500 to-rose-600',
+        'from-emerald-500 to-teal-600',
+        'from-amber-500 to-orange-600',
+        'from-cyan-500 to-sky-600',
+        'from-rose-500 to-red-600',
+        'from-indigo-500 to-violet-600',
     ];
-    const idx = name.charCodeAt(0) % colors.length;
+    const idx = (name.charCodeAt(0) + (name.charCodeAt(1) || 0)) % colors.length;
     return colors[idx];
 }
 
@@ -42,53 +49,95 @@ function formatTime(iso: string) {
     } catch { return ''; }
 }
 
+/** Safely normalizes data that could be a string (legacy) or TrackedLead object */
+export function normalizeItems(rawItems: (TrackedLead | string)[]): TrackedLead[] {
+    return (rawItems || []).map(item => {
+        if (typeof item === 'string') {
+            return { name: item, time: new Date().toISOString() };
+        }
+        return item;
+    });
+}
+
 export function DailyLeadsList({
     title, badgeLabel, badgeColor, headerGradient,
-    items, onAdd, onRemove, placeholder, emptyText
+    items, onAdd, onRemove, placeholder, emptyText, crmLeads = []
 }: DailyLeadsListProps) {
     const [inputValue, setInputValue] = useState('');
     const [noteValue, setNoteValue] = useState('');
     const [showNote, setShowNote] = useState(false);
+    const [showDropdown, setShowDropdown] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const normalizedItems = normalizeItems(items as (TrackedLead | string)[]);
+
+    const filteredCrm = crmLeads.filter(l => {
+        const q = inputValue.toLowerCase();
+        return q.length > 0 && (
+            l.business_name.toLowerCase().includes(q) ||
+            l.owner_name.toLowerCase().includes(q)
+        );
+    }).slice(0, 5);
 
     const handleAdd = (e: React.FormEvent) => {
         e.preventDefault();
-        const trimmed = inputValue.trim();
+        addItem(inputValue);
+    };
+
+    const addItem = (name: string, fromCrm?: LeadSuggestion) => {
+        const trimmed = name.trim();
         if (!trimmed) return;
-        if (items.some(i => i.name.toLowerCase() === trimmed.toLowerCase())) {
+        if (normalizedItems.some(i => i.name.toLowerCase() === trimmed.toLowerCase())) {
             setInputValue('');
+            setShowDropdown(false);
             return;
         }
-        onAdd({ name: trimmed, note: noteValue.trim() || undefined, time: new Date().toISOString() });
+        onAdd({
+            name: fromCrm ? fromCrm.business_name : trimmed,
+            note: fromCrm ? `CRM: ${fromCrm.estado_actual}` : (noteValue.trim() || undefined),
+            time: new Date().toISOString()
+        });
         setInputValue('');
         setNoteValue('');
         setShowNote(false);
+        setShowDropdown(false);
     };
 
     // Sort newest first
-    const sortedItems = [...items].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+    const sortedItems = [...normalizedItems].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
 
     return (
-        <section className="bg-white/[0.04] backdrop-blur-sm rounded-2xl border border-white/[0.06] overflow-hidden flex flex-col">
+        <section className="bg-[#13131f] rounded-2xl border border-white/[0.06] overflow-hidden flex flex-col shadow-xl">
             {/* Header gradient strip */}
-            <div className={`bg-gradient-to-r ${headerGradient} px-5 py-3 flex items-center justify-between`}>
+            <div className={`bg-gradient-to-r ${headerGradient} px-5 py-3.5 flex items-center justify-between`}>
                 <div className="flex items-center gap-2">
                     <span className="text-white font-bold text-sm tracking-wide">{title}</span>
+                    {normalizedItems.length > 0 && (
+                        <span className="text-white/70 text-xs">·</span>
+                    )}
                 </div>
-                <div className="bg-white/20 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">
-                    {items.length}
+                <div className="bg-black/20 text-white text-xs font-black px-2.5 py-0.5 rounded-full">
+                    {normalizedItems.length}
                 </div>
             </div>
 
             {/* Input */}
-            <div className="p-4 border-b border-white/[0.06]">
+            <div className="p-3 border-b border-white/[0.05] relative">
                 <form onSubmit={handleAdd} className="space-y-2">
                     <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                         <input
+                            ref={inputRef}
                             type="text"
                             value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
+                            onChange={(e) => {
+                                setInputValue(e.target.value);
+                                setShowDropdown(true);
+                            }}
+                            onFocus={() => setShowDropdown(true)}
+                            onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
                             placeholder={placeholder || 'Nombre del lead...'}
-                            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-white/20 pr-20 transition-all"
+                            className="w-full bg-black/30 border border-white/[0.08] rounded-xl pl-9 pr-20 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-white/15 transition-all"
                         />
                         <div className="absolute right-2 top-1.5 flex gap-1">
                             <button
@@ -102,60 +151,84 @@ export function DailyLeadsList({
                             <button
                                 type="submit"
                                 disabled={!inputValue.trim()}
-                                className="px-2.5 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-lg transition-colors disabled:opacity-40 text-xs font-bold"
+                                className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors disabled:opacity-40"
                             >
                                 <Plus className="w-4 h-4" />
                             </button>
                         </div>
                     </div>
+
+                    {/* CRM Autocomplete dropdown */}
+                    {showDropdown && filteredCrm.length > 0 && (
+                        <div className="absolute left-3 right-3 mt-1 bg-[#1c1c2e] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
+                            {filteredCrm.map(lead => (
+                                <button
+                                    key={lead.id}
+                                    type="button"
+                                    onMouseDown={() => addItem(lead.business_name, lead)}
+                                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.06] transition-colors text-left"
+                                >
+                                    <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${getAvatarColor(lead.business_name)} flex items-center justify-center text-white text-[10px] font-black shrink-0`}>
+                                        {getInitials(lead.business_name)}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-sm text-white font-medium truncate">{lead.business_name}</p>
+                                        <p className="text-[10px] text-slate-500">{lead.owner_name} · {lead.estado_actual}</p>
+                                    </div>
+                                    <ChevronDown className="w-3.5 h-3.5 text-slate-600 ml-auto shrink-0 rotate-[-90deg]" />
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
                     {showNote && (
                         <input
                             type="text"
                             value={noteValue}
                             onChange={(e) => setNoteValue(e.target.value)}
                             placeholder="Nota rápida (ej: respondió interesado...)"
-                            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all"
+                            className="w-full bg-black/20 border border-white/[0.06] rounded-xl px-4 py-2 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-white/10 transition-all"
                         />
                     )}
                 </form>
             </div>
 
             {/* List */}
-            <ul className="flex-1 overflow-y-auto divide-y divide-white/[0.04] max-h-72">
+            <ul className="flex-1 overflow-y-auto divide-y divide-white/[0.03] max-h-80">
                 {sortedItems.length === 0 ? (
-                    <div className="h-40 flex flex-col items-center justify-center text-slate-500 gap-2">
-                        <Users className="w-8 h-8 opacity-20" />
-                        <span className="text-xs font-medium">{emptyText || 'Ningún lead trackeado aún'}</span>
+                    <div className="h-36 flex flex-col items-center justify-center text-slate-600 gap-2 px-4 text-center">
+                        <Users className="w-7 h-7 opacity-20" />
+                        <span className="text-xs font-medium leading-snug">{emptyText || 'Ningún lead trackeado aún'}</span>
                     </div>
                 ) : (
-                    sortedItems.map(item => {
+                    sortedItems.map((item, idx) => {
                         const initials = getInitials(item.name);
-                        const avatarColor = getAvatarColor(item.name);
+                        const avatarGradient = getAvatarColor(item.name);
                         return (
-                            <li key={item.name + item.time} className="group px-4 py-3 flex items-start gap-3 hover:bg-white/[0.03] transition-colors">
+                            <li key={item.name + idx} className="group px-4 py-3 flex items-start gap-3 hover:bg-white/[0.025] transition-colors">
                                 {/* Avatar */}
-                                <div className={`w-9 h-9 rounded-full ${avatarColor} flex items-center justify-center shrink-0 text-white text-xs font-black shadow-md`}>
+                                <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center shrink-0 text-white text-[11px] font-black shadow-md`}>
                                     {initials}
                                 </div>
 
                                 {/* Info */}
-                                <div className="flex-1 min-w-0">
+                                <div className="flex-1 min-w-0 pt-0.5">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="text-sm font-semibold text-white">{item.name}</span>
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeColor}`}>
+                                        <span className="text-sm font-semibold text-white leading-tight">{item.name}</span>
+                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${badgeColor}`}>
                                             {badgeLabel}
                                         </span>
                                     </div>
                                     {item.note && (
                                         <p className="text-xs text-slate-400 mt-0.5 truncate">{item.note}</p>
                                     )}
-                                    <span className="text-[10px] text-slate-600 font-medium">{formatTime(item.time)}</span>
+                                    <span className="text-[10px] text-slate-600 font-medium tabular-nums">{formatTime(item.time)}</span>
                                 </div>
 
                                 {/* Remove */}
                                 <button
                                     onClick={() => onRemove(item.name)}
-                                    className="p-1 text-slate-600 hover:text-red-400 rounded transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                    className="p-1 text-slate-700 hover:text-red-400 rounded transition-all opacity-0 group-hover:opacity-100 shrink-0 mt-0.5"
                                 >
                                     <X className="w-3.5 h-3.5" />
                                 </button>
