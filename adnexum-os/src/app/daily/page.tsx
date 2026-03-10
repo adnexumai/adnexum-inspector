@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useDailyLog, useDailyLogHistory } from '@/lib/hooks';
 import { DAILY_KPI_TARGETS, type TrackedLead } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth-context';
 import confetti from 'canvas-confetti';
 import {
     ArrowLeft, ArrowRight, CheckCircle2, Save, Calendar as CalendarIcon,
@@ -43,6 +44,7 @@ interface CrmLead {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function DailyTrackerPage() {
+    const { user } = useAuth();
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const { log, loading, save } = useDailyLog(date);
     const { history, loading: historyLoading, refresh: refreshHistory } = useDailyLogHistory(7);
@@ -107,7 +109,27 @@ export default function DailyTrackerPage() {
     };
 
     const handleAddProspecto = async (item: TrackedLead) => {
-        const newVal = [item, ...prospectos];
+        let finalItem = item;
+        const crmMatch = crmLeads.find(c => c.business_name.toLowerCase() === item.name.toLowerCase());
+
+        if (!crmMatch && user) {
+            try {
+                const { data, error } = await supabase.from('leads').insert({
+                    user_id: user.id,
+                    business_name: item.name,
+                    estado_actual: 'nuevo_lead'
+                }).select('id, business_name, owner_name, estado_actual').single();
+
+                if (data && !error) {
+                    setCrmLeads(prev => [...prev, data as CrmLead].sort((a, b) => a.business_name.localeCompare(b.business_name)));
+                    finalItem = { ...item, note: item.note ? `${item.note} | CRM: nuevo_lead` : `CRM: nuevo_lead` };
+                }
+            } catch (err) {
+                console.error('Failed to auto-create lead', err);
+            }
+        }
+
+        const newVal = [finalItem, ...prospectos];
         setProspectos(newVal);
         await save({ prospectos_hoy: newVal });
         // Auto-increment outreach KPI
@@ -123,7 +145,27 @@ export default function DailyTrackerPage() {
     };
 
     const handleAddSeguimiento = async (item: TrackedLead) => {
-        const newVal = [item, ...seguimientos];
+        let finalItem = item;
+        const crmMatch = crmLeads.find(c => c.business_name.toLowerCase() === item.name.toLowerCase());
+
+        if (!crmMatch && user) {
+            try {
+                const { data, error } = await supabase.from('leads').insert({
+                    user_id: user.id,
+                    business_name: item.name,
+                    estado_actual: 'contactado'
+                }).select('id, business_name, owner_name, estado_actual').single();
+
+                if (data && !error) {
+                    setCrmLeads(prev => [...prev, data as CrmLead].sort((a, b) => a.business_name.localeCompare(b.business_name)));
+                    finalItem = { ...item, note: item.note ? `${item.note} | CRM: contactado` : `CRM: contactado` };
+                }
+            } catch (err) {
+                console.error('Failed to auto-create lead', err);
+            }
+        }
+
+        const newVal = [finalItem, ...seguimientos];
         setSeguimientos(newVal);
         await save({ seguimientos_hoy: newVal });
     };
