@@ -1,0 +1,383 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+/* ──────────────────────────────────────────────────────
+   JL BARBER SHOP — Freddy Krueger Design System
+   Palette: Blood Red #8B0000 · Dirty Green #3D5A1F · Jet Black
+────────────────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg-primary:    #060606;
+  --bg-secondary:  #0c0c0c;
+  --bg-card:       rgba(14, 14, 14, 0.7);
+  --bg-elevated:   #111111;
+  --bg-input:      #0d0d0d;
+
+  /* Brand — Freddy palette */
+  --accent-red:        #8B0000;
+  --accent-red-light:  #C41E3A;
+  --accent-red-dark:   #5C0000;
+  --accent-red-muted:  rgba(139, 0, 0, 0.10);
+  --accent-green:      #3D5A1F;
+  --accent-green-light:#5A7A2E;
+  --accent-green-dark: #2A3D12;
+  --accent-green-muted:rgba(61, 90, 31, 0.12);
+
+  /* Text */
+  --text-primary:   #F0EDE8;
+  --text-secondary: #A09890;
+  --text-muted:     #575250;
+
+  /* Borders */
+  --border-subtle:  rgba(255, 255, 255, 0.04);
+  --border-red:     rgba(139, 0, 0, 0.28);
+  --border-green:   rgba(61, 90, 31, 0.28);
+
+  /* Shadows */
+  --shadow-red:     rgba(139, 0, 0, 0.18);
+  --shadow-green:   rgba(61, 90, 31, 0.15);
+
+  /* Gradients */
+  --gradient-brand:       linear-gradient(135deg, #8B0000 0%, #C41E3A 50%, #8B0000 100%);
+  --gradient-green:       linear-gradient(135deg, #3D5A1F 0%, #5A7A2E 60%, #3D5A1F 100%);
+  --gradient-stripe:      repeating-linear-gradient(
+    -55deg,
+    #8B0000 0px, #8B0000 18px,
+    #1a1a1a 18px, #1a1a1a 26px,
+    #3D5A1F 26px, #3D5A1F 44px,
+    #1a1a1a 44px, #1a1a1a 52px
+  );
+  --gradient-dark:  linear-gradient(180deg, #060606 0%, #0c0c0c 50%, #060606 100%);
+
+  /* Glass */
+  --glass-bg:       rgba(12, 12, 12, 0.75);
+  --glass-border:   rgba(255, 255, 255, 0.05);
+
+  /* Radius */
+  --radius-sm:  6px;
+  --radius-md:  12px;
+  --radius-lg:  18px;
+  --radius-xl:  26px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Typography ─────────────────────────────────────── */
+h1, h2, h3, h4 {
+  font-family: 'Bebas Neue', 'Impact', sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+.font-display { font-family: 'Bebas Neue', 'Impact', sans-serif; letter-spacing: 0.04em; }
+.font-body    { font-family: 'Outfit', 'Inter', sans-serif; }
+
+/* ─── Glassmorphism ──────────────────────────────────── */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(40px) saturate(130%);
+  -webkit-backdrop-filter: blur(40px) saturate(130%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-card:hover {
+  border-color: var(--border-red);
+  box-shadow: 0 8px 40px var(--shadow-red), inset 0 1px 0 rgba(255,255,255,0.04);
+  transform: translateY(-2px);
+}
+.glass-card-static {
+  background: var(--glass-bg);
+  backdrop-filter: blur(40px) saturate(130%);
+  -webkit-backdrop-filter: blur(40px) saturate(130%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+}
+.glass-card-red {
+  background: linear-gradient(135deg, rgba(139,0,0,0.08) 0%, rgba(12,12,12,0.7) 60%);
+  backdrop-filter: blur(40px) saturate(130%);
+  -webkit-backdrop-filter: blur(40px) saturate(130%);
+  border: 1px solid rgba(139,0,0,0.15);
+  border-radius: var(--radius-lg);
+}
+
+/* ─── Stripe banner (Freddy sweater) ─────────────────── */
+.stripe-banner {
+  background: var(--gradient-stripe);
+  background-size: 60px 60px;
+  padding: 3px 0;
+}
+
+/* ─── Primary Button ─────────────────────────────────── */
+.btn-brand {
+  background: var(--gradient-brand);
+  color: #F0EDE8;
+  font-weight: 700;
+  font-family: 'Bebas Neue', sans-serif;
+  padding: 14px 32px;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  letter-spacing: 0.1em;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+.btn-brand::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.22) 50%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.35s;
+}
+.btn-brand:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(139,0,0,0.45); }
+.btn-brand:hover::before { opacity: 1; }
+.btn-brand:active { transform: translateY(0); }
+.btn-brand:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* ─── Green Button ───────────────────────────────────── */
+.btn-green {
+  background: var(--gradient-green);
+  color: #F0EDE8;
+  font-weight: 700;
+  font-family: 'Bebas Neue', sans-serif;
+  padding: 12px 28px;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  transition: all 0.3s;
+}
+.btn-green:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(61,90,31,0.4); }
+.btn-green:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ─── Outline Button ─────────────────────────────────── */
+.btn-outline {
+  background: transparent;
+  color: var(--accent-red-light);
+  font-weight: 600;
+  font-family: 'Outfit', sans-serif;
+  padding: 12px 28px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid rgba(139,0,0,0.35);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s;
+}
+.btn-outline:hover {
+  background: rgba(139,0,0,0.08);
+  border-color: var(--accent-red-light);
+  box-shadow: 0 0 20px rgba(139,0,0,0.15);
+}
+
+/* ─── Input Fields ───────────────────────────────────── */
+.input-premium {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-family: 'Outfit', sans-serif;
+  width: 100%;
+  transition: all 0.3s;
+  outline: none;
+}
+.input-premium:focus {
+  border-color: var(--accent-red);
+  box-shadow: 0 0 0 3px rgba(139,0,0,0.12);
+}
+.input-premium::placeholder { color: var(--text-muted); }
+
+/* ─── Freddy Progress Bar ────────────────────────────── */
+.freddy-track {
+  background: linear-gradient(180deg, #0a0a0a 0%, #141414 50%, #0a0a0a 100%);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 999px;
+  padding: 3px;
+  position: relative;
+  overflow: hidden;
+}
+.freddy-fill {
+  background: linear-gradient(90deg, #5C0000, #8B0000, #C41E3A, #8B0000, #5C0000);
+  background-size: 200% 100%;
+  border-radius: 999px;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  animation: freddyShift 3s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(139,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.2);
+}
+.freddy-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+  animation: shimmer 2.5s infinite;
+}
+@keyframes freddyShift {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ─── Step Dots ──────────────────────────────────────── */
+.step-dot {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Outfit', sans-serif;
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+.step-dot.completed {
+  background: var(--gradient-brand);
+  color: #F0EDE8;
+  box-shadow: 0 0 16px rgba(139,0,0,0.45);
+}
+.step-dot.completed::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid rgba(139,0,0,0.25);
+  animation: pulseRing 2s ease-out infinite;
+}
+.step-dot.active {
+  background: rgba(139,0,0,0.15);
+  color: var(--accent-red-light);
+  border: 2px solid var(--accent-red);
+  box-shadow: 0 0 20px rgba(139,0,0,0.25);
+}
+.step-dot.inactive {
+  background: rgba(255,255,255,0.03);
+  color: var(--text-muted);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+@keyframes pulseRing {
+  0%   { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* ─── JL Pass (reward card) ──────────────────────────── */
+.jl-pass {
+  background: linear-gradient(135deg, #1a0000 0%, #2D0000 40%, #1a0000 70%, #0d1a05 100%);
+  border: 1px solid rgba(139,0,0,0.3);
+  border-radius: var(--radius-xl);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(139,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.jl-pass::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(from 0deg, transparent, rgba(139,0,0,0.06), transparent, rgba(61,90,31,0.04), transparent);
+  animation: passRotate 8s linear infinite;
+}
+@keyframes passRotate { to { transform: rotate(360deg); } }
+
+/* ─── Metric Cards ───────────────────────────────────── */
+.metric-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  transition: all 0.3s;
+}
+.metric-card:hover {
+  border-color: rgba(139,0,0,0.2);
+  box-shadow: 0 4px 20px rgba(139,0,0,0.08);
+}
+
+/* ─── Revenue Bar Chart ──────────────────────────────── */
+.rev-bar {
+  background: linear-gradient(180deg, var(--accent-red-light) 0%, var(--accent-red) 100%);
+  border-radius: 4px 4px 0 0;
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+.rev-bar:hover { filter: brightness(1.2); }
+
+/* ─── Scrollbar ──────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(139,0,0,0.3); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(139,0,0,0.6); }
+
+/* ─── Animations ─────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+.animate-fadeIn { animation: fadeIn 0.5s ease forwards; }
+.animate-pulse  { animation: pulse 2s ease-in-out infinite; }
+
+/* ─── VIP badge ──────────────────────────────────────── */
+.vip-badge {
+  background: linear-gradient(135deg, rgba(139,0,0,0.2), rgba(61,90,31,0.15));
+  border: 1px solid rgba(139,0,0,0.3);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  color: var(--accent-red-light);
+  letter-spacing: 0.05em;
+}
+
+/* ─── Tab navigation ─────────────────────────────────── */
+.tab-btn {
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.25s;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: transparent;
+  white-space: nowrap;
+}
+.tab-btn.active {
+  background: rgba(139,0,0,0.15);
+  color: var(--accent-red-light);
+  border: 1px solid rgba(139,0,0,0.25);
+}
+.tab-btn:hover:not(.active) {
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.03);
+}
+
+/* ─── Status badges ──────────────────────────────────── */
+.badge-pending  { background: rgba(234,179,8,0.12);  color: #FBBF24; border: 1px solid rgba(234,179,8,0.2);  border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 700; }
+.badge-approved { background: rgba(61,90,31,0.15);   color: #86EFAC; border: 1px solid rgba(61,90,31,0.25);  border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 700; }
+.badge-rejected { background: rgba(139,0,0,0.12);    color: #FCA5A5; border: 1px solid rgba(139,0,0,0.2);    border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 700; }
