@@ -2,20 +2,37 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Target, MessageCircle, TrendingUp, BarChart2, Users, RefreshCw } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import {
+    Target, MessageCircle, TrendingUp, BarChart2, Users,
+    RefreshCw, ChevronDown, ChevronUp, Zap, Clock
+} from 'lucide-react';
+import { formatDistanceToNow, format } from 'date-fns';
 import { es } from 'date-fns/locale';
+
+interface Mensaje {
+    id: number;
+    telefono: string;
+    direccion: 'saliente' | 'entrante';
+    tipo: string;
+    contenido: string;
+    nombre_contacto: string;
+    timestamp: string;
+}
 
 interface Prospecto {
     id: number;
     telefono: string;
     negocio: string;
+    nombre_contacto: string;
     primer_contacto: string;
     ultimo_contacto: string;
     estado: string;
     mensajes_enviados: number;
     respondio: boolean;
     notas: string;
+    resumen_ia: string;
+    oportunidad_score: number;
+    ultimo_analisis: string;
 }
 
 interface KPIHoy { contactos: number; respuestas: number; tasa: number }
@@ -33,6 +50,18 @@ const ESTADO_LABEL: Record<string, string> = {
     cerrado_positivo: 'Cerrado ✓', cerrado_negativo: 'Cerrado ✗',
 };
 
+function ScoreBadge({ score }: { score: number }) {
+    if (!score) return null;
+    const color = score >= 7 ? 'text-green-400 bg-green-500/10 border-green-500/30'
+        : score >= 4 ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30'
+        : 'text-red-400 bg-red-500/10 border-red-500/30';
+    return (
+        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${color}`}>
+            {score}/10
+        </span>
+    );
+}
+
 export default function ProspeccionPage() {
     const supabase = createClient();
     const [prospectos, setProspectos] = useState<Prospecto[]>([]);
@@ -43,10 +72,13 @@ export default function ProspeccionPage() {
     const [editando, setEditando] = useState<Prospecto | null>(null);
     const [form, setForm] = useState({ negocio: '', estado: '', notas: '' });
     const [saving, setSaving] = useState(false);
+    const [expandido, setExpandido] = useState<number | null>(null);
+    const [mensajesExpandido, setMensajesExpandido] = useState<Mensaje[]>([]);
+    const [loadingMensajes, setLoadingMensajes] = useState(false);
+    const [analizando, setAnalizando] = useState<string | null>(null);
 
     const cargar = useCallback(async () => {
         const hoy = new Date().toISOString().split('T')[0];
-
         const [{ data: lista }, { count: totalHoy }, { count: respHoy }, { data: dias }, { count: hist }] =
             await Promise.all([
                 supabase.from('prospectos').select('*').order('ultimo_contacto', { ascending: false }).limit(200),
@@ -69,11 +101,60 @@ export default function ProspeccionPage() {
 
     useEffect(() => { cargar(); }, [cargar]);
 
-    // Auto-refresh cada 30s
+    // Realtime — escuchar cambios en prospectos y mensajes
     useEffect(() => {
-        const t = setInterval(cargar, 30000);
-        return () => clearInterval(t);
-    }, [cargar]);
+        const channel = supabase.channel('prospeccion-realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'prospectos' }, () => {
+                cargar();
+            })
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'prospectos_mensajes' }, (payload) => {
+                // Si el expandido es este teléfono, recargar mensajes
+                const nuevoMsg = payload.new as Mensaje;
+                setMensajesExpandido(prev => {
+                    if (prev.length && prev[0]?.telefono === nuevoMsg.telefono) {
+                        return [...prev, nuevoMsg].sort((a, b) =>
+                            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+                        );
+                    }
+                    return prev;
+                });
+                cargar();
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, [supabase, cargar]);
+
+    async function toggleExpandido(p: Prospecto) {
+        if (expandido === p.id) {
+            setExpandido(null);
+            setMensajesExpandido([]);
+            return;
+        }
+        setExpandido(p.id);
+        setLoadingMensajes(true);
+        const { data } = await supabase
+            .from('prospectos_mensajes')
+            .select('*')
+            .eq('telefono', p.telefono)
+            .order('timestamp', { ascending: true });
+        setMensajesExpandido((data as Mensaje[]) || []);
+        setLoadingMensajes(false);
+    }
+
+    async function analizarProspecto(telefono: string) {
+        setAnalizando(telefono);
+        try {
+            await fetch('/api/analizar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ telefono }),
+            });
+            await cargar();
+        } finally {
+            setAnalizando(null);
+        }
+    }
 
     function abrirEdicion(p: Prospecto) {
         setEditando(p);
@@ -102,16 +183,25 @@ export default function ProspeccionPage() {
                     </div>
                     <div>
                         <h1 className="text-xl font-bold">Prospección en Frío</h1>
-                        <p className="text-sm text-gray-500">Tracker automático · YCloud WhatsApp</p>
+                        <p className="text-sm text-gray-500">Tracker automático · YCloud WhatsApp · Análisis IA cada 24h</p>
                     </div>
                 </div>
-                <button
-                    onClick={cargar}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-400 hover:text-white transition-colors"
-                >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    Actualizar
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => fetch('/api/analizar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(() => cargar())}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-sm text-purple-400 hover:text-purple-300 transition-colors"
+                    >
+                        <Zap className="w-3.5 h-3.5" />
+                        Analizar todo
+                    </button>
+                    <button
+                        onClick={cargar}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-400 hover:text-white transition-colors"
+                    >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Actualizar
+                    </button>
+                </div>
             </div>
 
             {/* KPI Cards */}
@@ -137,12 +227,8 @@ export default function ProspeccionPage() {
                 <div className="bg-[#0f0f0f] border border-white/8 rounded-xl p-4">
                     <div className="flex items-center gap-4 mb-4">
                         <span className="text-sm text-gray-500">Últimos 14 días</span>
-                        <span className="flex items-center gap-1 text-xs text-gray-600">
-                            <span className="w-2 h-2 rounded-sm bg-blue-500/70 inline-block" /> Contactos
-                        </span>
-                        <span className="flex items-center gap-1 text-xs text-gray-600">
-                            <span className="w-2 h-2 rounded-sm bg-green-400/80 inline-block" /> Respuestas
-                        </span>
+                        <span className="flex items-center gap-1 text-xs text-gray-600"><span className="w-2 h-2 rounded-sm bg-blue-500/70 inline-block" /> Contactos</span>
+                        <span className="flex items-center gap-1 text-xs text-gray-600"><span className="w-2 h-2 rounded-sm bg-green-400/80 inline-block" /> Respuestas</span>
                     </div>
                     <div className="flex items-end gap-1.5 h-24">
                         {ultimos14.map(d => {
@@ -171,49 +257,120 @@ export default function ProspeccionPage() {
                     <div className="text-center py-16 text-gray-600">
                         <Target className="w-10 h-10 mx-auto mb-3 opacity-30" />
                         <p className="text-sm">No hay prospectos aún.</p>
-                        <p className="text-xs mt-1">Se registran automáticamente cuando enviás mensajes de WhatsApp.</p>
+                        <p className="text-xs mt-1">Se registran automáticamente al enviar mensajes de WhatsApp.</p>
                     </div>
                 ) : (
                     <div className="bg-[#0f0f0f] border border-white/8 rounded-xl overflow-hidden">
-                        <table className="w-full text-sm">
-                            <thead className="border-b border-white/8">
-                                <tr>
-                                    {['Teléfono', 'Negocio', 'Estado', 'Primer contacto', 'Último contacto', 'Msgs', ''].map(h => (
-                                        <th key={h} className="text-left px-4 py-3 text-xs text-gray-600 font-medium uppercase tracking-wide">{h}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {prospectos.map(p => (
-                                    <tr key={p.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
-                                        <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.telefono}</td>
-                                        <td className="px-4 py-3 font-medium text-white">
-                                            {p.negocio || <span className="text-gray-700 italic">Sin nombre</span>}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${ESTADO_STYLE[p.estado] || ''}`}>
-                                                {ESTADO_LABEL[p.estado] || p.estado}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-gray-600">
-                                            {formatDistanceToNow(new Date(p.primer_contacto), { addSuffix: true, locale: es })}
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-gray-600">
-                                            {formatDistanceToNow(new Date(p.ultimo_contacto), { addSuffix: true, locale: es })}
-                                        </td>
-                                        <td className="px-4 py-3 text-center text-xs text-gray-500">{p.mensajes_enviados}</td>
-                                        <td className="px-4 py-3">
-                                            <button
-                                                onClick={() => abrirEdicion(p)}
-                                                className="px-2.5 py-1 text-xs rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
-                                            >
-                                                Editar
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        {prospectos.map((p, i) => (
+                            <div key={p.id} className={i < prospectos.length - 1 ? 'border-b border-white/5' : ''}>
+                                {/* Fila principal */}
+                                <div
+                                    className="grid grid-cols-[1fr_1fr_120px_80px_80px_100px_80px] gap-2 px-4 py-3 hover:bg-white/3 transition-colors cursor-pointer items-center"
+                                    onClick={() => toggleExpandido(p)}
+                                >
+                                    <div>
+                                        <p className="font-medium text-sm text-white">
+                                            {p.negocio || p.nombre_contacto || <span className="text-gray-600 italic text-xs">Sin nombre</span>}
+                                        </p>
+                                        <p className="font-mono text-[10px] text-gray-600">{p.telefono}</p>
+                                    </div>
+                                    <div className="text-xs text-gray-500 truncate">
+                                        {p.resumen_ia ? p.resumen_ia.split('\n').find(l => l.startsWith('RESUMEN:'))?.replace('RESUMEN:', '').trim() || '—' : '—'}
+                                    </div>
+                                    <div>
+                                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${ESTADO_STYLE[p.estado] || ''}`}>
+                                            {ESTADO_LABEL[p.estado] || p.estado}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-center">
+                                        <ScoreBadge score={p.oportunidad_score} />
+                                    </div>
+                                    <div className="text-center text-xs text-gray-600">{p.mensajes_enviados}</div>
+                                    <div className="text-xs text-gray-600">
+                                        {formatDistanceToNow(new Date(p.ultimo_contacto), { addSuffix: true, locale: es })}
+                                    </div>
+                                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                        <button
+                                            onClick={() => abrirEdicion(p)}
+                                            className="px-2 py-1 text-xs rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                                        >
+                                            Editar
+                                        </button>
+                                        {expandido === p.id ? <ChevronUp className="w-3.5 h-3.5 text-gray-600" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-600" />}
+                                    </div>
+                                </div>
+
+                                {/* Panel expandido */}
+                                {expandido === p.id && (
+                                    <div className="border-t border-white/5 bg-black/20 px-4 py-4 grid grid-cols-2 gap-6">
+                                        {/* Conversación */}
+                                        <div>
+                                            <p className="text-xs text-gray-500 mb-3 uppercase tracking-wide">Conversación</p>
+                                            {loadingMensajes ? (
+                                                <p className="text-xs text-gray-600">Cargando mensajes...</p>
+                                            ) : mensajesExpandido.length === 0 ? (
+                                                <p className="text-xs text-gray-600">Sin mensajes registrados</p>
+                                            ) : (
+                                                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                                    {mensajesExpandido.map(m => (
+                                                        <div key={m.id} className={`flex ${m.direccion === 'saliente' ? 'justify-end' : 'justify-start'}`}>
+                                                            <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs ${
+                                                                m.direccion === 'saliente'
+                                                                    ? 'bg-green-500/20 text-green-100'
+                                                                    : 'bg-white/8 text-gray-300'
+                                                            }`}>
+                                                                <p className="mb-0.5">{m.contenido || `[${m.tipo}]`}</p>
+                                                                <p className="text-[10px] opacity-50">
+                                                                    {format(new Date(m.timestamp), 'dd/MM HH:mm')}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Análisis IA */}
+                                        <div>
+                                            <div className="flex items-center justify-between mb-3">
+                                                <p className="text-xs text-gray-500 uppercase tracking-wide">Análisis IA</p>
+                                                <button
+                                                    onClick={() => analizarProspecto(p.telefono)}
+                                                    disabled={analizando === p.telefono}
+                                                    className="flex items-center gap-1 px-2 py-1 text-[10px] rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:text-purple-300 transition-colors disabled:opacity-50"
+                                                >
+                                                    <Zap className="w-3 h-3" />
+                                                    {analizando === p.telefono ? 'Analizando...' : 'Analizar ahora'}
+                                                </button>
+                                            </div>
+                                            {p.resumen_ia ? (
+                                                <div className="space-y-2">
+                                                    {p.resumen_ia.split('\n').filter(Boolean).map((linea, i) => {
+                                                        const [clave, ...resto] = linea.split(':');
+                                                        const valor = resto.join(':').trim();
+                                                        if (!valor) return null;
+                                                        return (
+                                                            <div key={i}>
+                                                                <span className="text-[10px] text-gray-600 uppercase tracking-wide">{clave.trim()}</span>
+                                                                <p className="text-xs text-gray-300 mt-0.5">{valor}</p>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {p.ultimo_analisis && (
+                                                        <p className="text-[10px] text-gray-700 flex items-center gap-1 mt-2">
+                                                            <Clock className="w-3 h-3" />
+                                                            {formatDistanceToNow(new Date(p.ultimo_analisis), { addSuffix: true, locale: es })}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-gray-600">Sin análisis aún. Hacé clic en "Analizar ahora".</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>
@@ -224,45 +381,29 @@ export default function ProspeccionPage() {
                     <div className="bg-[#111] border border-white/10 rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
                         <h3 className="text-base font-semibold mb-5">Editar prospecto</h3>
                         <p className="font-mono text-xs text-gray-500 mb-4">{editando.telefono}</p>
-
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-xs text-gray-500 mb-1.5">Nombre del negocio</label>
-                                <input
-                                    value={form.negocio}
-                                    onChange={e => setForm(f => ({ ...f, negocio: e.target.value }))}
+                                <input value={form.negocio} onChange={e => setForm(f => ({ ...f, negocio: e.target.value }))}
                                     placeholder="Ej: La Keso, BBM Solutions..."
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500/50"
-                                />
+                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500/50" />
                             </div>
                             <div>
                                 <label className="block text-xs text-gray-500 mb-1.5">Estado</label>
-                                <select
-                                    value={form.estado}
-                                    onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500/50"
-                                >
-                                    {Object.entries(ESTADO_LABEL).map(([v, l]) => (
-                                        <option key={v} value={v}>{l}</option>
-                                    ))}
+                                <select value={form.estado} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
+                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500/50">
+                                    {Object.entries(ESTADO_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                                 </select>
                             </div>
                             <div>
                                 <label className="block text-xs text-gray-500 mb-1.5">Notas</label>
-                                <textarea
-                                    value={form.notas}
-                                    onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
-                                    placeholder="Contexto del prospecto..."
-                                    rows={3}
-                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500/50 resize-none"
-                                />
+                                <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
+                                    placeholder="Contexto del prospecto..." rows={3}
+                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-green-500/50 resize-none" />
                             </div>
                         </div>
-
                         <div className="flex gap-3 justify-end mt-6">
-                            <button onClick={() => setEditando(null)} className="px-4 py-2 text-sm rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 transition-colors">
-                                Cancelar
-                            </button>
+                            <button onClick={() => setEditando(null)} className="px-4 py-2 text-sm rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 transition-colors">Cancelar</button>
                             <button onClick={guardar} disabled={saving} className="px-4 py-2 text-sm rounded-lg bg-green-500 hover:bg-green-400 text-black font-semibold transition-colors disabled:opacity-50">
                                 {saving ? 'Guardando...' : 'Guardar'}
                             </button>
