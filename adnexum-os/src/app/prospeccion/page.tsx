@@ -312,14 +312,16 @@ export default function ProspeccionPage() {
                                                 <p className="text-xs text-gray-600">Sin mensajes registrados</p>
                                             ) : (
                                                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                                                    {mensajesExpandido.map(m => (
+                                                    {mensajesExpandido.filter(m => m.contenido && m.contenido.trim()).length === 0 ? (
+                                                        <p className="text-xs text-gray-600">Los mensajes anteriores no tienen contenido guardado. Los nuevos mensajes se guardarán completos.</p>
+                                                    ) : mensajesExpandido.filter(m => m.contenido && m.contenido.trim()).map(m => (
                                                         <div key={m.id} className={`flex ${m.direccion === 'saliente' ? 'justify-end' : 'justify-start'}`}>
                                                             <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs ${
                                                                 m.direccion === 'saliente'
                                                                     ? 'bg-green-500/20 text-green-100'
                                                                     : 'bg-white/8 text-gray-300'
                                                             }`}>
-                                                                <p className="mb-0.5">{m.contenido || `[${m.tipo}]`}</p>
+                                                                <p className="mb-0.5">{m.contenido}</p>
                                                                 <p className="text-[10px] opacity-50">
                                                                     {format(new Date(m.timestamp), 'dd/MM HH:mm')}
                                                                 </p>
