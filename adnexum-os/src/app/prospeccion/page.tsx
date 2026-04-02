@@ -81,7 +81,7 @@ export default function ProspeccionPage() {
         const hoy = new Date().toISOString().split('T')[0];
         const [{ data: lista }, { count: totalHoy }, { count: respHoy }, { data: dias }, { count: hist }] =
             await Promise.all([
-                supabase.from('prospectos').select('*').order('ultimo_contacto', { ascending: false }).limit(200),
+                supabase.from('prospectos').select('*').order('ultimo_contacto', { ascending: false }).limit(1000),
                 supabase.from('prospectos').select('*', { count: 'exact', head: true })
                     .gte('primer_contacto', `${hoy}T00:00:00`).lte('primer_contacto', `${hoy}T23:59:59`),
                 supabase.from('prospectos').select('*', { count: 'exact', head: true })
