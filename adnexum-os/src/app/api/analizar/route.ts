@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 
 function getServiceClient() {
     return createClient(
@@ -13,7 +13,7 @@ function getServiceClient() {
 // Body: { telefono?: string } — si no viene, analiza todos con conversación nueva (últimas 24h)
 export async function POST(req: NextRequest) {
     const supabase = getServiceClient();
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     let telefonosAanalizar: string[] = [];
     const body = await req.json().catch(() => ({}));
@@ -80,9 +80,9 @@ export async function POST(req: NextRequest) {
 
             const negocio = prospecto?.negocio || prospecto?.nombre_contacto || telefono;
 
-            // Llamar a Claude para análisis
-            const response = await anthropic.messages.create({
-                model: 'claude-haiku-4-5-20251001',
+            // Llamar a OpenAI para análisis
+            const response = await openai.chat.completions.create({
+                model: 'gpt-4o-mini',
                 max_tokens: 600,
                 messages: [{
                     role: 'user',
@@ -103,7 +103,7 @@ PRÓXIMO PASO: [acción concreta que Tomás debería tomar hoy o mañana]`
                 }]
             });
 
-            const analisis = response.content[0].type === 'text' ? response.content[0].text : '';
+            const analisis = response.choices[0].message.content || '';
 
             // Extraer score
             const scoreMatch = analisis.match(/OPORTUNIDAD:\s*(\d+)/);
