@@ -15,6 +15,7 @@ import {
     ChevronRight,
     Zap,
     Rocket,
+    Target,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
     { href: '/pipeline', label: 'Pipeline', icon: Flame, emoji: '🔥' },
     { href: '/proyectos', label: 'Proyectos', icon: Rocket, emoji: '🚀' },
     { href: '/daily', label: 'Daily Tracker', icon: Zap, emoji: '⚡' },
+    { href: '/prospeccion', label: 'Prospección', icon: Target, emoji: '🎯' },
     { href: '/seguimiento', label: 'Seguimiento', icon: ClipboardCheck, emoji: '📋' },
     { href: '/tareas', label: 'Tareas', icon: CheckSquare, emoji: '✅' },
     { href: '/calendario', label: 'Calendario', icon: Calendar, emoji: '📅' },
