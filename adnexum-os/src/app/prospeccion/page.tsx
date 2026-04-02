@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import {
     Target, MessageCircle, TrendingUp, BarChart2, Users,
-    RefreshCw, ChevronDown, ChevronUp, Zap, Clock
+    RefreshCw, ChevronDown, ChevronUp, Zap, Clock, Search, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -38,6 +38,8 @@ interface Prospecto {
 interface KPIHoy { contactos: number; respuestas: number; tasa: number }
 interface DiaStat { dia: string; contactos: number; respuestas: number }
 
+const PAGE_SIZE = 50;
+
 const ESTADO_STYLE: Record<string, string> = {
     enviado:          'bg-blue-500/15 text-blue-400 border border-blue-500/30',
     respondio:        'bg-green-500/15 text-green-400 border border-green-500/30',
@@ -68,6 +70,7 @@ export default function ProspeccionPage() {
     const [kpi, setKpi] = useState<KPIHoy>({ contactos: 0, respuestas: 0, tasa: 0 });
     const [porDia, setPorDia] = useState<DiaStat[]>([]);
     const [total, setTotal] = useState(0);
+    const [totalFiltrado, setTotalFiltrado] = useState(0);
     const [loading, setLoading] = useState(true);
     const [editando, setEditando] = useState<Prospecto | null>(null);
     const [form, setForm] = useState({ negocio: '', estado: '', notas: '' });
@@ -76,12 +79,31 @@ export default function ProspeccionPage() {
     const [mensajesExpandido, setMensajesExpandido] = useState<Mensaje[]>([]);
     const [loadingMensajes, setLoadingMensajes] = useState(false);
     const [analizando, setAnalizando] = useState<string | null>(null);
+    const [busqueda, setBusqueda] = useState('');
+    const [filtroEstado, setFiltroEstado] = useState('');
+    const [pagina, setPagina] = useState(0);
+    const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const cargar = useCallback(async () => {
+    const cargar = useCallback(async (pag = 0, search = '', estado = '') => {
+        setLoading(true);
         const hoy = new Date().toISOString().split('T')[0];
-        const [{ data: lista }, { count: totalHoy }, { count: respHoy }, { data: dias }, { count: hist }] =
+        const from = pag * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        let query = supabase.from('prospectos').select('*', { count: 'exact' })
+            .order('ultimo_contacto', { ascending: false })
+            .range(from, to);
+
+        if (search) {
+            query = query.or(`telefono.ilike.%${search}%,negocio.ilike.%${search}%,nombre_contacto.ilike.%${search}%`);
+        }
+        if (estado) {
+            query = query.eq('estado', estado);
+        }
+
+        const [{ data: lista, count: filtCount }, { count: totalHoy }, { count: respHoy }, { data: dias }, { count: hist }] =
             await Promise.all([
-                supabase.from('prospectos').select('*').order('ultimo_contacto', { ascending: false }).limit(1000),
+                query,
                 supabase.from('prospectos').select('*', { count: 'exact', head: true })
                     .gte('primer_contacto', `${hoy}T00:00:00`).lte('primer_contacto', `${hoy}T23:59:59`),
                 supabase.from('prospectos').select('*', { count: 'exact', head: true })
@@ -93,22 +115,45 @@ export default function ProspeccionPage() {
         const c = totalHoy ?? 0;
         const r = respHoy ?? 0;
         setProspectos((lista as Prospecto[]) || []);
+        setTotalFiltrado(filtCount ?? 0);
         setKpi({ contactos: c, respuestas: r, tasa: c > 0 ? Math.round((r / c) * 100) : 0 });
         setPorDia(dias || []);
         setTotal(hist ?? 0);
         setLoading(false);
     }, [supabase]);
 
-    useEffect(() => { cargar(); }, [cargar]);
+    useEffect(() => { cargar(0, '', ''); }, [cargar]);
 
-    // Realtime — escuchar cambios en prospectos y mensajes
+    // Búsqueda con debounce
+    function onBusqueda(val: string) {
+        setBusqueda(val);
+        setPagina(0);
+        if (searchTimeout.current) clearTimeout(searchTimeout.current);
+        searchTimeout.current = setTimeout(() => {
+            cargar(0, val, filtroEstado);
+        }, 350);
+    }
+
+    function onFiltroEstado(val: string) {
+        setFiltroEstado(val);
+        setPagina(0);
+        cargar(0, busqueda, val);
+    }
+
+    function irPagina(pag: number) {
+        setPagina(pag);
+        setExpandido(null);
+        setMensajesExpandido([]);
+        cargar(pag, busqueda, filtroEstado);
+    }
+
+    // Realtime
     useEffect(() => {
         const channel = supabase.channel('prospeccion-realtime')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'prospectos' }, () => {
-                cargar();
+                cargar(pagina, busqueda, filtroEstado);
             })
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'prospectos_mensajes' }, (payload) => {
-                // Si el expandido es este teléfono, recargar mensajes
                 const nuevoMsg = payload.new as Mensaje;
                 setMensajesExpandido(prev => {
                     if (prev.length && prev[0]?.telefono === nuevoMsg.telefono) {
@@ -118,12 +163,11 @@ export default function ProspeccionPage() {
                     }
                     return prev;
                 });
-                cargar();
+                cargar(pagina, busqueda, filtroEstado);
             })
             .subscribe();
-
         return () => { supabase.removeChannel(channel); };
-    }, [supabase, cargar]);
+    }, [supabase, cargar, pagina, busqueda, filtroEstado]);
 
     async function toggleExpandido(p: Prospecto) {
         if (expandido === p.id) {
@@ -150,7 +194,7 @@ export default function ProspeccionPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ telefono }),
             });
-            await cargar();
+            await cargar(pagina, busqueda, filtroEstado);
         } finally {
             setAnalizando(null);
         }
@@ -167,11 +211,12 @@ export default function ProspeccionPage() {
         await supabase.from('prospectos').update(form).eq('telefono', editando.telefono);
         setSaving(false);
         setEditando(null);
-        cargar();
+        cargar(pagina, busqueda, filtroEstado);
     }
 
     const ultimos14 = [...porDia].reverse().slice(-14);
     const maxVal = Math.max(...ultimos14.map(d => d.contactos), 1);
+    const totalPaginas = Math.ceil(totalFiltrado / PAGE_SIZE);
 
     return (
         <div className="space-y-6">
@@ -188,14 +233,14 @@ export default function ProspeccionPage() {
                 </div>
                 <div className="flex gap-2">
                     <button
-                        onClick={() => fetch('/api/analizar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(() => cargar())}
+                        onClick={() => fetch('/api/analizar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(() => cargar(pagina, busqueda, filtroEstado))}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-sm text-purple-400 hover:text-purple-300 transition-colors"
                     >
                         <Zap className="w-3.5 h-3.5" />
                         Analizar todo
                     </button>
                     <button
-                        onClick={cargar}
+                        onClick={() => cargar(pagina, busqueda, filtroEstado)}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-400 hover:text-white transition-colors"
                     >
                         <RefreshCw className="w-3.5 h-3.5" />
@@ -248,132 +293,203 @@ export default function ProspeccionPage() {
                 </div>
             )}
 
+            {/* Búsqueda y filtros */}
+            <div className="flex gap-3">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <input
+                        value={busqueda}
+                        onChange={e => onBusqueda(e.target.value)}
+                        placeholder="Buscar por teléfono, negocio o nombre..."
+                        className="w-full bg-[#0f0f0f] border border-white/8 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:border-green-500/40 transition-colors"
+                    />
+                </div>
+                <select
+                    value={filtroEstado}
+                    onChange={e => onFiltroEstado(e.target.value)}
+                    className="bg-[#0f0f0f] border border-white/8 rounded-xl px-3 py-2.5 text-sm text-gray-400 outline-none focus:border-green-500/40"
+                >
+                    <option value="">Todos los estados</option>
+                    {Object.entries(ESTADO_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+            </div>
+
             {/* Tabla */}
             <div>
-                <p className="text-sm text-gray-500 mb-3">Prospectos ({prospectos.length})</p>
+                <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm text-gray-500">
+                        {busqueda || filtroEstado
+                            ? `${totalFiltrado} resultado${totalFiltrado !== 1 ? 's' : ''}`
+                            : `${total} prospectos`
+                        }
+                        {totalPaginas > 1 && ` · página ${pagina + 1} de ${totalPaginas}`}
+                    </p>
+                </div>
+
                 {loading ? (
                     <div className="text-center py-12 text-gray-600 text-sm">Cargando...</div>
                 ) : prospectos.length === 0 ? (
                     <div className="text-center py-16 text-gray-600">
                         <Target className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                        <p className="text-sm">No hay prospectos aún.</p>
-                        <p className="text-xs mt-1">Se registran automáticamente al enviar mensajes de WhatsApp.</p>
+                        <p className="text-sm">{busqueda ? 'Sin resultados para esa búsqueda.' : 'No hay prospectos aún.'}</p>
                     </div>
                 ) : (
-                    <div className="bg-[#0f0f0f] border border-white/8 rounded-xl overflow-hidden">
-                        {prospectos.map((p, i) => (
-                            <div key={p.id} className={i < prospectos.length - 1 ? 'border-b border-white/5' : ''}>
-                                {/* Fila principal */}
-                                <div
-                                    className="grid grid-cols-[1fr_1fr_120px_80px_80px_100px_80px] gap-2 px-4 py-3 hover:bg-white/3 transition-colors cursor-pointer items-center"
-                                    onClick={() => toggleExpandido(p)}
-                                >
-                                    <div>
-                                        <p className="font-medium text-sm text-white">
-                                            {p.negocio || p.nombre_contacto || <span className="text-gray-600 italic text-xs">Sin nombre</span>}
-                                        </p>
-                                        <p className="font-mono text-[10px] text-gray-600">{p.telefono}</p>
-                                    </div>
-                                    <div className="text-xs text-gray-500 truncate">
-                                        {p.resumen_ia ? p.resumen_ia.split('\n').find(l => l.startsWith('RESUMEN:'))?.replace('RESUMEN:', '').trim() || '—' : '—'}
-                                    </div>
-                                    <div>
-                                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${ESTADO_STYLE[p.estado] || ''}`}>
-                                            {ESTADO_LABEL[p.estado] || p.estado}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center justify-center">
-                                        <ScoreBadge score={p.oportunidad_score} />
-                                    </div>
-                                    <div className="text-center text-xs text-gray-600">{p.mensajes_enviados}</div>
-                                    <div className="text-xs text-gray-600">
-                                        {formatDistanceToNow(new Date(p.ultimo_contacto), { addSuffix: true, locale: es })}
-                                    </div>
-                                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                                        <button
-                                            onClick={() => abrirEdicion(p)}
-                                            className="px-2 py-1 text-xs rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
-                                        >
-                                            Editar
-                                        </button>
-                                        {expandido === p.id ? <ChevronUp className="w-3.5 h-3.5 text-gray-600" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-600" />}
-                                    </div>
-                                </div>
-
-                                {/* Panel expandido */}
-                                {expandido === p.id && (
-                                    <div className="border-t border-white/5 bg-black/20 px-4 py-4 grid grid-cols-2 gap-6">
-                                        {/* Conversación */}
+                    <>
+                        <div className="bg-[#0f0f0f] border border-white/8 rounded-xl overflow-hidden">
+                            {prospectos.map((p, i) => (
+                                <div key={p.id} className={i < prospectos.length - 1 ? 'border-b border-white/5' : ''}>
+                                    <div
+                                        className="grid grid-cols-[1fr_1fr_120px_80px_80px_100px_80px] gap-2 px-4 py-3 hover:bg-white/3 transition-colors cursor-pointer items-center"
+                                        onClick={() => toggleExpandido(p)}
+                                    >
                                         <div>
-                                            <p className="text-xs text-gray-500 mb-3 uppercase tracking-wide">Conversación</p>
-                                            {loadingMensajes ? (
-                                                <p className="text-xs text-gray-600">Cargando mensajes...</p>
-                                            ) : mensajesExpandido.length === 0 ? (
-                                                <p className="text-xs text-gray-600">Sin mensajes registrados</p>
-                                            ) : (
-                                                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                                                    {mensajesExpandido.filter(m => m.contenido && m.contenido.trim()).length === 0 ? (
-                                                        <p className="text-xs text-gray-600">Los mensajes anteriores no tienen contenido guardado. Los nuevos mensajes se guardarán completos.</p>
-                                                    ) : mensajesExpandido.filter(m => m.contenido && m.contenido.trim()).map(m => (
-                                                        <div key={m.id} className={`flex ${m.direccion === 'saliente' ? 'justify-end' : 'justify-start'}`}>
-                                                            <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs ${
-                                                                m.direccion === 'saliente'
-                                                                    ? 'bg-green-500/20 text-green-100'
-                                                                    : 'bg-white/8 text-gray-300'
-                                                            }`}>
-                                                                <p className="mb-0.5">{m.contenido}</p>
-                                                                <p className="text-[10px] opacity-50">
-                                                                    {format(new Date(m.timestamp), 'dd/MM HH:mm')}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
+                                            <p className="font-medium text-sm text-white">
+                                                {p.negocio || p.nombre_contacto || <span className="text-gray-600 italic text-xs">Sin nombre</span>}
+                                            </p>
+                                            <p className="font-mono text-[10px] text-gray-600">{p.telefono}</p>
                                         </div>
-
-                                        {/* Análisis IA */}
+                                        <div className="text-xs text-gray-500 truncate">
+                                            {p.resumen_ia ? p.resumen_ia.split('\n').find(l => l.startsWith('RESUMEN:'))?.replace('RESUMEN:', '').trim() || '—' : '—'}
+                                        </div>
                                         <div>
-                                            <div className="flex items-center justify-between mb-3">
-                                                <p className="text-xs text-gray-500 uppercase tracking-wide">Análisis IA</p>
-                                                <button
-                                                    onClick={() => analizarProspecto(p.telefono)}
-                                                    disabled={analizando === p.telefono}
-                                                    className="flex items-center gap-1 px-2 py-1 text-[10px] rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:text-purple-300 transition-colors disabled:opacity-50"
-                                                >
-                                                    <Zap className="w-3 h-3" />
-                                                    {analizando === p.telefono ? 'Analizando...' : 'Analizar ahora'}
-                                                </button>
+                                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${ESTADO_STYLE[p.estado] || ''}`}>
+                                                {ESTADO_LABEL[p.estado] || p.estado}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-center">
+                                            <ScoreBadge score={p.oportunidad_score} />
+                                        </div>
+                                        <div className="text-center text-xs text-gray-600">{p.mensajes_enviados}</div>
+                                        <div className="text-xs text-gray-600">
+                                            {formatDistanceToNow(new Date(p.ultimo_contacto), { addSuffix: true, locale: es })}
+                                        </div>
+                                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                            <button
+                                                onClick={() => abrirEdicion(p)}
+                                                className="px-2 py-1 text-xs rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                                            >
+                                                Editar
+                                            </button>
+                                            {expandido === p.id ? <ChevronUp className="w-3.5 h-3.5 text-gray-600" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-600" />}
+                                        </div>
+                                    </div>
+
+                                    {expandido === p.id && (
+                                        <div className="border-t border-white/5 bg-black/20 px-4 py-4 grid grid-cols-2 gap-6">
+                                            <div>
+                                                <p className="text-xs text-gray-500 mb-3 uppercase tracking-wide">Conversación</p>
+                                                {loadingMensajes ? (
+                                                    <p className="text-xs text-gray-600">Cargando mensajes...</p>
+                                                ) : mensajesExpandido.length === 0 ? (
+                                                    <p className="text-xs text-gray-600">Sin mensajes registrados</p>
+                                                ) : (
+                                                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                                        {mensajesExpandido.filter(m => m.contenido && m.contenido.trim()).length === 0 ? (
+                                                            <p className="text-xs text-gray-600">Los mensajes anteriores no tienen contenido guardado.</p>
+                                                        ) : mensajesExpandido.filter(m => m.contenido && m.contenido.trim()).map(m => (
+                                                            <div key={m.id} className={`flex ${m.direccion === 'saliente' ? 'justify-end' : 'justify-start'}`}>
+                                                                <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs ${
+                                                                    m.direccion === 'saliente'
+                                                                        ? 'bg-green-500/20 text-green-100'
+                                                                        : 'bg-white/8 text-gray-300'
+                                                                }`}>
+                                                                    <p className="mb-0.5">{m.contenido}</p>
+                                                                    <p className="text-[10px] opacity-50">
+                                                                        {format(new Date(m.timestamp), 'dd/MM HH:mm')}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
-                                            {p.resumen_ia ? (
-                                                <div className="space-y-2">
-                                                    {p.resumen_ia.split('\n').filter(Boolean).map((linea, i) => {
-                                                        const [clave, ...resto] = linea.split(':');
-                                                        const valor = resto.join(':').trim();
-                                                        if (!valor) return null;
-                                                        return (
-                                                            <div key={i}>
-                                                                <span className="text-[10px] text-gray-600 uppercase tracking-wide">{clave.trim()}</span>
-                                                                <p className="text-xs text-gray-300 mt-0.5">{valor}</p>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                    {p.ultimo_analisis && (
-                                                        <p className="text-[10px] text-gray-700 flex items-center gap-1 mt-2">
-                                                            <Clock className="w-3 h-3" />
-                                                            {formatDistanceToNow(new Date(p.ultimo_analisis), { addSuffix: true, locale: es })}
-                                                        </p>
-                                                    )}
+
+                                            <div>
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <p className="text-xs text-gray-500 uppercase tracking-wide">Análisis IA</p>
+                                                    <button
+                                                        onClick={() => analizarProspecto(p.telefono)}
+                                                        disabled={analizando === p.telefono}
+                                                        className="flex items-center gap-1 px-2 py-1 text-[10px] rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:text-purple-300 transition-colors disabled:opacity-50"
+                                                    >
+                                                        <Zap className="w-3 h-3" />
+                                                        {analizando === p.telefono ? 'Analizando...' : 'Analizar ahora'}
+                                                    </button>
                                                 </div>
-                                            ) : (
-                                                <p className="text-xs text-gray-600">Sin análisis aún. Hacé clic en "Analizar ahora".</p>
-                                            )}
+                                                {p.resumen_ia ? (
+                                                    <div className="space-y-2">
+                                                        {p.resumen_ia.split('\n').filter(Boolean).map((linea, i) => {
+                                                            const [clave, ...resto] = linea.split(':');
+                                                            const valor = resto.join(':').trim();
+                                                            if (!valor) return null;
+                                                            return (
+                                                                <div key={i}>
+                                                                    <span className="text-[10px] text-gray-600 uppercase tracking-wide">{clave.trim()}</span>
+                                                                    <p className="text-xs text-gray-300 mt-0.5">{valor}</p>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {p.ultimo_analisis && (
+                                                            <p className="text-[10px] text-gray-700 flex items-center gap-1 mt-2">
+                                                                <Clock className="w-3 h-3" />
+                                                                {formatDistanceToNow(new Date(p.ultimo_analisis), { addSuffix: true, locale: es })}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-xs text-gray-600">Sin análisis aún. Hacé clic en &quot;Analizar ahora&quot;.</p>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Paginación */}
+                        {totalPaginas > 1 && (
+                            <div className="flex items-center justify-between mt-4">
+                                <button
+                                    onClick={() => irPagina(pagina - 1)}
+                                    disabled={pagina === 0}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/8 text-sm text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                    Anterior
+                                </button>
+                                <div className="flex items-center gap-1">
+                                    {Array.from({ length: Math.min(totalPaginas, 7) }, (_, i) => {
+                                        let p: number;
+                                        if (totalPaginas <= 7) p = i;
+                                        else if (pagina < 4) p = i;
+                                        else if (pagina > totalPaginas - 5) p = totalPaginas - 7 + i;
+                                        else p = pagina - 3 + i;
+                                        return (
+                                            <button
+                                                key={p}
+                                                onClick={() => irPagina(p)}
+                                                className={`w-8 h-8 rounded-lg text-sm transition-colors ${
+                                                    p === pagina
+                                                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                                        : 'bg-white/5 text-gray-500 hover:text-white'
+                                                }`}
+                                            >
+                                                {p + 1}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <button
+                                    onClick={() => irPagina(pagina + 1)}
+                                    disabled={pagina >= totalPaginas - 1}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/8 text-sm text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    Siguiente
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
                             </div>
-                        ))}
-                    </div>
+                        )}
+                    </>
                 )}
             </div>
 
