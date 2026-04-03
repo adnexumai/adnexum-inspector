@@ -1,0 +1,103 @@
+# Configuración del Agente de Scraping
+
+# Configuración general
+general:
+  timeout: 30000  # ms
+  retry_attempts: 3
+  headless: true
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  wait_for_load: 2000  # ms adicionales después de cargar la página
+
+# Selectores CSS por defecto para detección automática
+default_selectors:
+  producto:
+    - ".product"
+    - ".product-item"
+    - ".item-product"
+    - "[data-product]"
+    - ".card-product"
+  nombre:
+    - "h2.product-title"
+    - "h3.product-name"
+    - ".product-title"
+    - ".product-name"
+    - "h2"
+    - "h3"
+  precio:
+    - ".price"
+    - ".product-price"
+    - "[data-price]"
+    - ".precio"
+    - ".cost"
+  descripcion:
+    - ".product-description"
+    - ".description"
+    - ".product-details"
+    - "p.desc"
+  imagen:
+    - "img.product-image"
+    - ".product-img img"
+    - "img[alt]"
+    - "img"
+
+# Configuraciones específicas por plataforma
+platforms:
+  shopify:
+    producto: ".product-card"
+    nombre: ".product-card__title"
+    precio: ".price"
+    descripcion: ".product-card__description"
+    imagen: ".product-card__image img"
+  
+  woocommerce:
+    producto: ".product"
+    nombre: ".woocommerce-loop-product__title"
+    precio: ".price"
+    descripcion: ".woocommerce-product-details__short-description"
+    imagen: ".wp-post-image"
+  
+  tiendanube:
+    producto: ".product-item"
+    nombre: ".product-item-name"
+    precio: ".price"
+    descripcion: ".product-description"
+    imagen: ".product-image img"
+
+# Selectores para información contextual del negocio
+business_context:
+  about:
+    - "#about"
+    - ".about"
+    - "[href*='nosotros']"
+    - "[href*='about']"
+  contact:
+    - "#contact"
+    - ".contact"
+    - "[href*='contacto']"
+    - "[href*='contact']"
+  phone:
+    - "[href^='tel:']"
+    - "a[href*='whatsapp']"
+  email:
+    - "[href^='mailto:']"
+  social:
+    instagram: "[href*='instagram.com']"
+    facebook: "[href*='facebook.com']"
+    twitter: "[href*='twitter.com']"
+    linkedin: "[href*='linkedin.com']"
+  faq:
+    - ".faq"
+    - "#faq"
+    - "[href*='preguntas']"
+    - "[href*='faq']"
+  policies:
+    shipping: "[href*='envio'], [href*='shipping']"
+    returns: "[href*='devolucion'], [href*='return']"
+    terms: "[href*='terminos'], [href*='terms']"
+
+# Configuración de salida
+output:
+  excel_filename_pattern: "catalogo_{domain}_{timestamp}.xlsx"
+  business_profile_filename_pattern: "perfil_{domain}_{timestamp}"
+  download_images: false  # false = solo URLs, true = descargar localmente
+  image_folder: "images"
