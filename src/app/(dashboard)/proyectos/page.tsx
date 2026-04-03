@@ -1,0 +1,22 @@
+import { createClient } from "@/lib/supabase/server";
+import { ProjectBoard } from "@/components/projects/project-board";
+import { Project } from "@/types";
+
+export default async function ProjectsPage() {
+    const supabase = await createClient();
+
+    const { data: projects, error } = await supabase
+        .from("projects")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        console.error("Error fetching projects:", error);
+    }
+
+    return (
+        <div className="h-full">
+            <ProjectBoard initialProjects={(projects as Project[]) || []} />
+        </div>
+    );
+}

@@ -1,26 +1,148 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: hsl(240 10% 3.9%);
+  --color-foreground: hsl(0 0% 98%);
+  --color-card: hsl(240 10% 5.5%);
+  --color-card-foreground: hsl(0 0% 98%);
+  --color-popover: hsl(240 10% 5.5%);
+  --color-popover-foreground: hsl(0 0% 98%);
+  --color-primary: hsl(263 70% 66%);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-secondary: hsl(240 5% 12%);
+  --color-secondary-foreground: hsl(0 0% 98%);
+  --color-muted: hsl(240 5% 15%);
+  --color-muted-foreground: hsl(240 5% 55%);
+  --color-accent: hsl(240 5% 15%);
+  --color-accent-foreground: hsl(0 0% 98%);
+  --color-destructive: hsl(0 63% 31%);
+  --color-destructive-foreground: hsl(0 0% 98%);
+  --color-border: hsl(240 5% 12%);
+  --color-input: hsl(240 5% 12%);
+  --color-ring: hsl(263 70% 66%);
+  --color-chart-1: hsl(263 70% 66%);
+  --color-chart-2: hsl(160 60% 45%);
+  --color-chart-3: hsl(37 90% 51%);
+  --color-chart-4: hsl(0 72% 51%);
+  --color-chart-5: hsl(210 60% 60%);
+  --color-sidebar: hsl(240 10% 4.5%);
+  --color-sidebar-foreground: hsl(0 0% 98%);
+  --color-sidebar-primary: hsl(263 70% 66%);
+  --color-sidebar-primary-foreground: hsl(0 0% 100%);
+  --color-sidebar-accent: hsl(240 5% 12%);
+  --color-sidebar-accent-foreground: hsl(0 0% 98%);
+  --color-sidebar-border: hsl(240 5% 10%);
+  --color-sidebar-ring: hsl(263 70% 66%);
+
+  --color-success: hsl(160 60% 45%);
+  --color-whatsapp: hsl(142 70% 49%);
+  --color-hot: hsl(0 72% 51%);
+  --color-warm: hsl(37 90% 51%);
+  --color-cold: hsl(210 60% 60%);
+
+  --radius: 0.75rem;
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ========================================
+   Base Styles
+   ======================================== */
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(240 5% 20%);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(240 5% 30%);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ========================================
+   Glassmorphism Utilities
+   ======================================== */
+@layer utilities {
+  .glass {
+    background: hsl(240 10% 8% / 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(0 0% 100% / 0.05);
+  }
+
+  .glass-card {
+    background: hsl(240 10% 6% / 0.8);
+    backdrop-filter: blur(16px);
+    border: 1px solid hsl(0 0% 100% / 0.06);
+    box-shadow: 0 0 0 1px hsl(0 0% 100% / 0.02),
+                0 4px 24px hsl(0 0% 0% / 0.4);
+  }
+
+  .glass-hover {
+    transition: all 0.2s ease;
+  }
+  .glass-hover:hover {
+    background: hsl(240 10% 8% / 0.9);
+    border-color: hsl(0 0% 100% / 0.1);
+    box-shadow: 0 0 0 1px hsl(0 0% 100% / 0.04),
+                0 8px 32px hsl(0 0% 0% / 0.5);
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    background: linear-gradient(135deg, hsl(263 70% 66%), hsl(263 70% 80%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Glow effect */
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(263 70% 66% / 0.15),
+                0 0 40px hsl(263 70% 66% / 0.05);
+  }
+
+  /* Subtle animation */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 0.3s ease-out;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
 }
