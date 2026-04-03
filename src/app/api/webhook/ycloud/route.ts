@@ -137,10 +137,19 @@ export async function POST(req: NextRequest) {
     switch (evento.type) {
         case "whatsapp.smb.message.echoes": {
             // Tomás envía desde WhatsApp Business App (modo coexistencia)
-            const msg = evento.whatsappMessage as Record<string, string> | undefined;
+            const msg = evento.whatsappMessage as Record<string, any> | undefined;
             if (msg?.to) {
                 await upsertProspecto(supabase, msg.to);
-                await registrarMensaje(supabase, msg.to, "saliente", msg.type, msg.sendTime || new Date().toISOString(), msg.wamid);
+
+                let contenido = msg.text?.body;
+                
+                if (msg.type === "audio" && msg.audio?.id) {
+                    contenido = await transcribirAudio(msg.audio.id);
+                } else if (msg.type === "voice" && msg.voice?.id) {
+                    contenido = await transcribirAudio(msg.voice.id);
+                }
+
+                await registrarMensaje(supabase, msg.to, "saliente", msg.type, msg.sendTime || new Date().toISOString(), msg.wamid, contenido);
             }
             break;
         }
