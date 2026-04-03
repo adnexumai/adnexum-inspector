@@ -36,25 +36,24 @@ async function transcribirAudio(mediaId: string): Promise<string> {
             headers: { "X-API-Key": ycloudKey }
         });
         
-        if (!mediaUrlRes.ok) return "<Error consultando media a YCloud>";
+        if (!mediaUrlRes.ok) return `<Error YCloud: ${mediaUrlRes.statusText}>`;
         const mediaInfo = await mediaUrlRes.json();
         
-        if (!mediaInfo.url) return "<No se encontró URL del audio en YCloud>";
+        if (!mediaInfo.url) return `<No se encontró URL en YCloud para mediaId ${mediaId}>`;
 
         // 2. Descargar el audio en binario
         const mediaRes = await fetch(mediaInfo.url, {
             headers: { 
                 "X-API-Key": ycloudKey,
-                "Authorization": `Bearer ${ycloudKey}` // Backup por si es Graph Meta URL directo
+                "Authorization": `Bearer ${ycloudKey}`
             }
         });
         
-        if (!mediaRes.ok) return "<Error descargando el audio binario>";
+        if (!mediaRes.ok) return `<Error descargando binario: ${mediaRes.statusText}>`;
         const buffer = await mediaRes.arrayBuffer();
         
         // 3. Transcribir con OpenAI Whisper
         const formData = new FormData();
-        // Whisper requiere que el nombre termine en .ogg o audio válido
         formData.append("file", new Blob([buffer], { type: "audio/ogg" }), "audio.ogg");
         formData.append("model", "whisper-1");
 
@@ -67,14 +66,14 @@ async function transcribirAudio(mediaId: string): Promise<string> {
         if (!openAiRes.ok) {
             const error = await openAiRes.text();
             console.error("OpenAI Whisper Error:", error);
-            return "<Error en la trasncripción IA>";
+            return `<Error IA Whisper: ${error}>`;
         }
 
         const result = await openAiRes.json();
-        return result.text ? `[Audio transcrito]: ${result.text}` : "<Audio irreconocible>";
+        return result.text ? `[Audio transcrito]: ${result.text}` : "<Audio sin palabras>";
     } catch (e: any) {
         console.error("Error transcribiendo audio:", e.message || e);
-        return "<Fallo interno en la transcripción>";
+        return `<Fallo código transcripción: ${e.message}>`;
     }
 }
 
@@ -167,9 +166,13 @@ export async function POST(req: NextRequest) {
                 
                 let contenido = msg.text?.body;
                 
-                // Si es un audio, tratamos de transcribirlo
+                // Audio normal de meta
                 if (msg.type === "audio" && msg.audio?.id) {
                     contenido = await transcribirAudio(msg.audio.id);
+                }
+                // Notas de voz en algunas envolturas de webhook
+                else if (msg.type === "voice" && msg.voice?.id) {
+                    contenido = await transcribirAudio(msg.voice.id);
                 }
 
                 await registrarMensaje(supabase, msg.from, "entrante", msg.type, msg.sendTime || new Date().toISOString(), msg.wamid, contenido);
