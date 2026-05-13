@@ -16,6 +16,7 @@ import {
     Zap,
     Rocket,
     Target,
+    Instagram,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
     { href: '/calendario', label: 'Calendario', icon: Calendar, emoji: '📅' },
     { href: '/templates', label: 'Templates', icon: FileText, emoji: '📝' },
     { href: '/gamificacion', label: 'Gamificación', icon: Trophy, emoji: '🏆' },
+    { href: '/marca-personal', label: 'Marca Personal', icon: Instagram, emoji: '📱' },
 ];
 
 export default function Sidebar() {
